@@ -1,0 +1,15 @@
+{
+  "name": "perso-demo",
+  "private": true,
+  "packageManager": "pnpm@11.4.0",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter perso-demo-backend dev\" \"pnpm --filter perso-demo-frontend dev\"",
+    "dev:backend": "pnpm --filter perso-demo-backend dev",
+    "dev:frontend": "pnpm --filter perso-demo-frontend dev",
+    "build": "pnpm --filter perso-demo-frontend build",
+    "typecheck": "pnpm --filter perso-demo-backend typecheck && pnpm --filter perso-demo-frontend typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
