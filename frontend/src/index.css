@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Berkeley+Mono&family=Geist:wght@300;400;500;600&display=swap');
+
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body { height: 100%; background: #080809; color: #e2e2e6; font-family: 'Geist', sans-serif; -webkit-font-smoothing: antialiased; }
+#root { height: 100%; }
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* surface */
+  --bg-base:       #080809;
+  --bg-surface:    #0f1011;
+  --bg-elevated:   #161719;
+  --bg-subtle:     #1c1d20;
+
+  /* border */
+  --border:        #242528;
+  --border-strong: #2e3033;
+
+  /* text */
+  --text-primary:   #e2e2e6;
+  --text-secondary: #8b8d96;
+  --text-tertiary:  #52545c;
+  --text-muted:     #35373e;
+
+  /* enforcement colors */
+  --allow:         #34d87a;
+  --allow-bg:      #0d2a1a;
+  --allow-border:  #1a4530;
+  --deny:          #f05252;
+  --deny-bg:       #2a0d0d;
+  --deny-border:   #451a1a;
+
+  /* accent */
+  --accent:        #7c6af7;
+  --accent-dim:    #3d3580;
+
+  /* mono font */
+  --font-mono: 'Berkeley Mono', 'Fira Code', monospace;
+  --font-sans: 'Geist', sans-serif;
+
+  /* radii */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* ── Utility ───────────────────────────────────────────────────────────────── */
+.mono { font-family: var(--font-mono); }

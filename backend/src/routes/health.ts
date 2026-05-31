@@ -1,4 +1,6 @@
 import { Router, Request, Response } from 'express';
+import { isPersoReady } from '../lib/perso.js';
+import { isGeminiReady } from '../lib/gemini.js';
 
 const router = Router();
 
@@ -8,8 +10,8 @@ interface HealthResponse {
   version: string;
   timestamp: string;
   features: {
-    wasm: boolean;  // enabled Phase 2
-    llm: boolean;   // enabled Phase 3
+    wasm: boolean;
+    llm: boolean;
   };
 }
 
@@ -20,8 +22,8 @@ router.get('/', (_req: Request, res: Response<HealthResponse>) => {
     version: '0.1.0',
     timestamp: new Date().toISOString(),
     features: {
-      wasm: false,
-      llm: false,
+      wasm: isPersoReady(),
+      llm:  isGeminiReady(),
     },
   });
 });

@@ -1,151 +1,173 @@
-import { useEffect, useState } from 'react';
-import { fetchHealth } from '../lib/api';
-import type { HealthResponse } from '../types/api';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { sendChat } from '../lib/api';
+import type { Role, ChatMessage as ApiChatMessage } from '../types/api';
+import RoleSelector from '../components/chat/RoleSelector';
+import PolicySidebar from '../components/chat/PolicySidebar';
+import StatusBanner from '../components/chat/StatusBanner';
+import ChatMessage, { type MessageData } from '../components/chat/ChatMessage';
+import TypingIndicator from '../components/chat/TypingIndicator';
+import EmptyState from '../components/chat/EmptyState';
+import ChatInput from '../components/chat/ChatInput';
 
-type Status = 'idle' | 'ok' | 'error';
+let idCounter = 0;
+const uid = () => String(++idCounter);
 
 export default function IndexPage() {
-  const [status, setStatus] = useState<Status>('idle');
-  const [data, setData] = useState<HealthResponse | null>(null);
+  const [role, setRole]         = useState<Role>('viewer');
+  const [messages, setMessages] = useState<MessageData[]>([]);
+  const [input, setInput]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const bottomRef               = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchHealth()
-      .then((d) => { setData(d); setStatus('ok'); })
-      .catch(() => setStatus('error'));
-  }, []);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  function buildHistory(displayMsgs: MessageData[]): ApiChatMessage[] {
+    return displayMsgs.map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  const send = useCallback(async (text: string) => {
+    if (!text.trim() || loading) return;
+
+    const userMsg: MessageData = { id: uid(), role: 'user', content: text.trim() };
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const res = await sendChat({ messages: buildHistory(nextMessages), role });
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'assistant', content: res.reply, trace: res.trace,
+      }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        id: uid(), role: 'assistant',
+        content: (err as Error).message ?? 'Something went wrong.',
+        isError: true,
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [messages, role, loading]);
+
+  function handleRoleChange(newRole: Role) {
+    setRole(newRole);
+    setMessages([]);
+    setInput('');
+  }
 
   return (
-    <>
-      <style>{CSS}</style>
-      <main className="root">
-        <div className="card">
-          <span className="icon">🔐</span>
-          <h1>perso-demo</h1>
-          <p className="sub">Policy enforcement for MCP tool calls</p>
+    <div style={styles.shell}>
 
-          <div className={`badge badge--${status}`}>
-            <span className="badge__dot" />
-            {status === 'idle' && 'Connecting to backend…'}
-            {status === 'ok' && `Backend ${data?.status ?? 'ok'} · v${data?.version}`}
-            {status === 'error' && 'Backend unreachable'}
-          </div>
-
-          <div className="phases">
-            {PHASES.map((p) => (
-              <div key={p.n} className={`phase ${p.done ? 'phase--done' : ''}`}>
-                <span className="phase__n">{p.done ? '✓' : p.n}</span>
-                <span className="phase__label">{p.label}</span>
-              </div>
-            ))}
-          </div>
+      {/* ── Top bar ── */}
+      <header style={styles.topbar}>
+        <div style={styles.brand}>
+          <span style={styles.brandIcon}>🔐</span>
+          <span style={styles.brandName}>perso-demo</span>
+          <span style={styles.brandSep}>·</span>
+          <span style={styles.brandSub}>policy enforcement</span>
         </div>
+        <div style={styles.topbarRight}>
+          <RoleSelector value={role} onChange={handleRoleChange} disabled={loading} />
+          <div style={styles.divider} />
+          <PolicySidebar role={role} />
+        </div>
+      </header>
+
+      {/* ── Status banner ── */}
+      <StatusBanner />
+
+      {/* ── Message thread ── */}
+      <main style={styles.thread}>
+        {messages.length === 0 && !loading ? (
+          <EmptyState role={role} onPrompt={(p) => send(p)} />
+        ) : (
+          <div style={styles.messages}>
+            {messages.map((m) => (
+              <ChatMessage key={m.id} message={m} />
+            ))}
+            {loading && <TypingIndicator />}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </main>
-    </>
+
+      {/* ── Input ── */}
+      <ChatInput
+        value={input}
+        onChange={setInput}
+        onSend={() => send(input)}
+        disabled={loading}
+      />
+    </div>
   );
 }
 
-const PHASES = [
-  { n: 1, label: 'Project setup', done: true },
-  { n: 2, label: 'Backend core — WASM + mock tools', done: false },
-  { n: 3, label: 'LLM integration — Gemini', done: false },
-  { n: 4, label: 'Frontend chat UI', done: false },
-  { n: 5, label: 'Polish — trace panel + policy viewer', done: false },
-];
-
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  .root {
-    min-height: 100dvh;
-    display: grid;
-    place-items: center;
-    background: #0c0c0d;
-    font-family: 'IBM Plex Sans', sans-serif;
-    padding: 2rem;
-  }
-
-  .card {
-    background: #131316;
-    border: 1px solid #222228;
-    border-radius: 12px;
-    padding: 2.5rem 2rem;
-    width: 100%;
-    max-width: 420px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .icon { font-size: 2.5rem; }
-
-  h1 {
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: #f0f0f2;
-    letter-spacing: -0.02em;
-  }
-
-  .sub {
-    font-size: 0.8rem;
-    color: #555;
-    font-family: 'IBM Plex Mono', monospace;
-    text-align: center;
-  }
-
-  .badge {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-family: 'IBM Plex Mono', monospace;
-    border: 1px solid transparent;
-  }
-  .badge__dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .badge--idle  { color: #666; border-color: #222; }
-  .badge--idle  .badge__dot { background: #444; }
-  .badge--ok    { color: #4ade80; border-color: #1a3d2b; background: #0d2218; }
-  .badge--ok    .badge__dot { background: #4ade80; box-shadow: 0 0 6px #4ade8099; }
-  .badge--error { color: #f87171; border-color: #3d1a1a; background: #220d0d; }
-  .badge--error .badge__dot { background: #f87171; }
-
-  .phases {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-top: 0.5rem;
-  }
-
-  .phase {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: 6px;
-    color: #3a3a44;
-    font-size: 0.8rem;
-  }
-  .phase--done {
-    color: #888;
-  }
-  .phase__n {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    width: 18px;
-    text-align: center;
-    color: #2a2a30;
-    flex-shrink: 0;
-  }
-  .phase--done .phase__n { color: #4ade80; }
-  .phase__label { flex: 1; }
-  .phase--done .phase__label { color: #999; }
-`;
+const styles: Record<string, React.CSSProperties> = {
+  shell: {
+    height: '100dvh',
+    display: 'flex',
+    flexDirection: 'column',
+    background: 'var(--bg-base)',
+    overflow: 'hidden',
+  },
+  topbar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 16px',
+    height: '52px',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-surface)',
+    flexShrink: 0,
+    gap: '12px',
+  },
+  brand: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexShrink: 0,
+  },
+  brandIcon: { fontSize: '16px' },
+  brandName: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: 'var(--text-primary)',
+  },
+  brandSep: { color: 'var(--text-muted)', fontSize: '14px' },
+  brandSub: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    color: 'var(--text-tertiary)',
+  },
+  topbarRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  divider: {
+    width: '1px',
+    height: '20px',
+    background: 'var(--border)',
+  },
+  thread: {
+    flex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  messages: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '20px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+    maxWidth: '720px',
+    width: '100%',
+    margin: '0 auto',
+  },
+};
