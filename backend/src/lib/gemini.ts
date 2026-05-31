@@ -1,20 +1,14 @@
 /**
- * Gemini client
+ * Gemini client — @google/genai v2
  *
- * Wraps @google/generative-ai and implements the two-step function calling
- * flow with perso interception between the two Gemini calls:
- *
- *   1. Send messages → Gemini returns function_call intent
- *   2. perso evaluates the intent → Allow or Deny
- *   3a. Allow → execute mock tool, send function_response → Gemini replies
- *   3b. Deny  → short-circuit, return denial without a second Gemini call
+ * Two-step function calling flow with perso interception:
+ *   1. Send messages → Gemini returns functionCalls
+ *   2. perso evaluates → Allow or Deny
+ *   3a. Allow → execute mock tool, send functionResponse → Gemini replies
+ *   3b. Deny  → short-circuit, return denial, no second Gemini call
  */
 
-import {
-  GoogleGenerativeAI,
-  Content,
-  Part,
-} from '@google/generative-ai';
+import { GoogleGenAI, type Content } from '@google/genai';
 import { persoEvaluate } from './perso.js';
 import { executeMockTool } from './mockTools.js';
 import { GEMINI_TOOLS } from './geminiTools.js';
@@ -28,28 +22,28 @@ import type {
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
-let genAI: GoogleGenerativeAI | null = null;
+let ai: GoogleGenAI | null = null;
 
 export function initGemini(): void {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error('GOOGLE_API_KEY is not set in environment');
-  genAI = new GoogleGenerativeAI(apiKey);
+  ai = new GoogleGenAI({ apiKey });
   console.log('[gemini] client initialised');
 }
 
 export function isGeminiReady(): boolean {
-  return genAI !== null;
+  return ai !== null;
 }
 
 // ── History conversion ────────────────────────────────────────────────────────
-// Gemini uses { role: 'user' | 'model', parts: Part[] }
-// Our ChatMessage uses { role: 'user' | 'assistant', content: string }
+// v2 uses Content[] with role 'user' | 'model'
+// Our ChatMessage uses role 'user' | 'assistant'
 
 function toGeminiHistory(messages: ChatMessage[]): Content[] {
-  // All messages except the last — the last is the new user prompt
+  // All messages except the last — the last is sent as the new user message
   return messages.slice(0, -1).map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }] as Part[],
+    parts: [{ text: m.content }],
   }));
 }
 
@@ -67,29 +61,29 @@ export async function chat(
   messages: ChatMessage[],
   role: Role,
 ): Promise<ChatResponseBody> {
-  if (!genAI) throw new Error('Gemini client not initialised — call initGemini() first');
+  if (!ai) throw new Error('Gemini client not initialised — call initGemini() first');
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    tools: GEMINI_TOOLS,
-    systemInstruction: buildSystemPrompt(role),
-  });
-
-  const history  = toGeminiHistory(messages);
+  const history = toGeminiHistory(messages);
   const userText = getLatestUserMessage(messages);
 
-  // ── Step 1: Send user message, get Gemini's response ─────────────────────
-  const chatSession = model.startChat({ history });
-  const firstResult = await chatSession.sendMessage(userText);
-  const firstResponse = firstResult.response;
+  // ── Step 1: Send user message ─────────────────────────────────────────────
+  const chatSession = ai.chats.create({
+    model: 'gemini-2.0-flash',
+    history,
+    config: {
+      systemInstruction: buildSystemPrompt(role),
+      tools: GEMINI_TOOLS,
+    },
+  });
+
+  const firstResponse = await chatSession.sendMessage({ message: userText });
 
   // ── Check if Gemini wants to call a tool ─────────────────────────────────
-  const functionCall = firstResponse.candidates?.[0]?.content?.parts
-    ?.find((p) => p.functionCall != null)?.functionCall;
+  const functionCalls = firstResponse.functionCalls;
+  const functionCall = functionCalls?.[0];
 
   if (!functionCall) {
-    // No tool call — return the text response directly
-    return { reply: firstResponse.text() };
+    return { reply: firstResponse.text ?? '' };
   }
 
   // ── Step 2: perso evaluates the tool call intent ──────────────────────────
@@ -100,13 +94,13 @@ export async function chat(
 
   const trace: PersoTrace = {
     toolName,
-    args:     toolArgs,
+    args: toolArgs,
     role,
     decision: persoResult.decision,
-    reason:   persoResult.reason,
+    reason: persoResult.reason,
   };
 
-  // ── Step 3a: Deny — short circuit, no tool execution ─────────────────────
+  // ── Step 3a: Deny — short circuit ─────────────────────────────────────────
   if (persoResult.decision === 'Deny') {
     return {
       reply: `I wanted to call \`${toolName}\` but your current role (**${role}**) is not permitted to do that.\n\n> ${persoResult.reason}`,
@@ -118,17 +112,20 @@ export async function chat(
   const toolResult = executeMockTool(toolName, toolArgs);
   trace.result = toolResult;
 
-  const secondResult = await chatSession.sendMessage([
-    {
-      functionResponse: {
-        name: toolName,
-        response: { output: toolResult },
+  const secondResponse = await chatSession.sendMessage({
+    message: [
+      {
+        functionResponse: {
+          id: functionCall.id ?? toolName,
+          name: toolName,
+          response: { output: toolResult },
+        },
       },
-    },
-  ]);
+    ],
+  });
 
   return {
-    reply: secondResult.response.text(),
+    reply: secondResponse.text ?? '',
     trace,
   };
 }
@@ -143,6 +140,6 @@ When a user asks you to perform a file operation, call the appropriate tool.
 A policy engine will decide whether the operation is permitted based on the user's role.
 If a tool call is denied, explain clearly what happened and what the user's role allows.
 
-Available files in the system include paths like /etc/config.json, /var/log/app.log, /home/user/notes.txt, and /app/secrets.env.
+Available files include: /etc/config.json, /var/log/app.log, /home/user/notes.txt, /app/secrets.env.
 Be concise and helpful.`;
 }
