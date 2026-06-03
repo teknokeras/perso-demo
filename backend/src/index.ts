@@ -2,10 +2,10 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { loadPerso } from './lib/perso.js';
-import { initGemini } from './lib/gemini.js';
-import healthRouter   from './routes/health.js';
+import { initGroq } from './lib/groq.js';
+import healthRouter from './routes/health.js';
 import evaluateRouter from './routes/evaluate.js';
-import chatRouter     from './routes/chat.js';
+import chatRouter from './routes/chat.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -19,9 +19,9 @@ app.use(cors({
 app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.use('/health',   healthRouter);
+app.use('/health', healthRouter);
 app.use('/evaluate', evaluateRouter);
-app.use('/chat',     chatRouter);
+app.use('/chat', chatRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req: Request, res: Response) => {
@@ -44,12 +44,12 @@ async function start() {
     console.warn('[perso] Drop perso.wasm into backend/src/wasm/ and restart');
   }
 
-  // Gemini — non-fatal if API key not set yet
+  // Groq — non-fatal if API key not set yet
   try {
-    initGemini();
+    initGroq();
   } catch (err) {
-    console.warn('[gemini]', (err as Error).message);
-    console.warn('[gemini] Set GOOGLE_API_KEY in backend/.env and restart');
+    console.warn('[groq]', (err as Error).message);
+    console.warn('[groq] Set GROQ_API_KEY in backend/.env and restart');
   }
 
   app.listen(PORT, () => {

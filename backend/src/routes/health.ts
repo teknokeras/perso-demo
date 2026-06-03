@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { isPersoReady } from '../lib/perso.js';
-import { isGeminiReady } from '../lib/gemini.js';
+import { isGroqReady } from '../lib/groq.js';
 
 const router = Router();
 
@@ -23,7 +23,7 @@ router.get('/', (_req: Request, res: Response<HealthResponse>) => {
     timestamp: new Date().toISOString(),
     features: {
       wasm: isPersoReady(),
-      llm:  isGeminiReady(),
+      llm: isGroqReady(),
     },
   });
 });

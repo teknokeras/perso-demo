@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { chat, isGeminiReady } from '../lib/gemini.js';
+import { chat, isGroqReady } from '../lib/groq.js';
 import { isPersoReady } from '../lib/perso.js';
 import type { ChatRequestBody, ChatResponseBody, Role } from '../lib/types.js';
 import { ROLES } from '../lib/types.js';
@@ -13,8 +13,8 @@ router.post(
     res: Response,
   ) => {
     // ── Guards ──────────────────────────────────────────────────────────────
-    if (!isGeminiReady()) {
-      res.status(503).json({ error: 'Gemini not initialised — set GOOGLE_API_KEY and restart' });
+    if (!isGroqReady()) {
+      res.status(503).json({ error: 'Groq not initialised — set GROQ_API_KEY and restart' });
       return;
     }
 
