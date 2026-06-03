@@ -12,12 +12,130 @@ import ChatInput from '../components/chat/ChatInput';
 let idCounter = 0;
 const uid = () => String(++idCounter);
 
+// ── Role-aware suggested prompts ──────────────────────────────────────────────
+
+const ROLE_PROMPTS: Record<Role, { text: string; willDeny?: boolean }[]> = {
+  viewer: [
+    { text: 'Read /etc/config.json' },
+    { text: 'Show me /var/log/app.log' },
+    { text: 'Try to delete /etc/config.json', willDeny: true },
+    { text: 'Try to create /tmp/test.txt', willDeny: true },
+  ],
+  supervisor: [
+    { text: 'Read /etc/config.json' },
+    { text: 'Update /home/user/notes.txt with a meeting summary' },
+    { text: 'Try to delete /app/secrets.env', willDeny: true },
+    { text: 'Try to create /tmp/report.txt', willDeny: true },
+  ],
+  admin: [
+    { text: 'Read /app/secrets.env' },
+    { text: 'Create /tmp/report.txt with some content' },
+    { text: 'Update /etc/config.json to enable debug mode' },
+    { text: 'Delete /home/user/notes.txt' },
+  ],
+};
+
+// ── Quick action bar (shown above messages) ───────────────────────────────────
+
+function QuickActions({ role, onPrompt, disabled }: {
+  role: Role;
+  onPrompt: (text: string) => void;
+  disabled: boolean;
+}) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  const prompts = ROLE_PROMPTS[role];
+
+  return (
+    <div style={qa.wrap}>
+      <span style={qa.label}>quick actions</span>
+      <div style={qa.list}>
+        {prompts.map((p) => {
+          const isHovered = hovered === p.text;
+          return (
+            <button
+              key={p.text}
+              onClick={() => !disabled && onPrompt(p.text)}
+              onMouseEnter={() => setHovered(p.text)}
+              onMouseLeave={() => setHovered(null)}
+              disabled={disabled}
+              style={{
+                ...qa.btn,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+                background: isHovered
+                  ? (p.willDeny ? 'var(--deny-bg)' : 'var(--bg-subtle)')
+                  : 'var(--bg-elevated)',
+                borderColor: isHovered
+                  ? (p.willDeny ? 'var(--deny-border)' : 'var(--border-strong)')
+                  : 'var(--border)',
+                color: isHovered ? 'var(--text-primary)' : 'var(--text-secondary)',
+              }}
+            >
+              <span style={{
+                ...qa.icon,
+                color: p.willDeny ? 'var(--deny)' : 'var(--text-muted)',
+              }}>
+                {p.willDeny ? '✗' : '→'}
+              </span>
+              {p.text}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const qa: Record<string, React.CSSProperties> = {
+  wrap: {
+    padding: '10px 16px 0',
+    maxWidth: '720px',
+    width: '100%',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    flexShrink: 0,
+  },
+  label: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '10px',
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
+  list: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+  },
+  btn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '5px 10px',
+    borderRadius: 'var(--r-sm)',
+    border: '1px solid',
+    fontSize: '12px',
+    fontFamily: 'var(--font-sans)',
+    transition: 'background 0.1s, border-color 0.1s, color 0.1s',
+    whiteSpace: 'nowrap',
+  },
+  icon: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    flexShrink: 0,
+  },
+};
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function IndexPage() {
-  const [role, setRole]         = useState<Role>('viewer');
+  const [role, setRole] = useState<Role>('viewer');
   const [messages, setMessages] = useState<MessageData[]>([]);
-  const [input, setInput]       = useState('');
-  const [loading, setLoading]   = useState(false);
-  const bottomRef               = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,6 +176,8 @@ export default function IndexPage() {
     setInput('');
   }
 
+  const hasMessages = messages.length > 0 || loading;
+
   return (
     <div style={styles.shell}>
 
@@ -81,15 +201,24 @@ export default function IndexPage() {
 
       {/* ── Message thread ── */}
       <main style={styles.thread}>
-        {messages.length === 0 && !loading ? (
+        {!hasMessages ? (
           <EmptyState role={role} onPrompt={(p) => send(p)} />
         ) : (
-          <div style={styles.messages}>
-            {messages.map((m) => (
-              <ChatMessage key={m.id} message={m} />
-            ))}
-            {loading && <TypingIndicator />}
-            <div ref={bottomRef} />
+          <div style={styles.scrollArea}>
+            {/* Quick actions — always visible above messages */}
+            <QuickActions role={role} onPrompt={send} disabled={loading} />
+
+            {/* Divider */}
+            <div style={styles.threadDivider} />
+
+            {/* Messages */}
+            <div style={styles.messages}>
+              {messages.map((m) => (
+                <ChatMessage key={m.id} message={m} />
+              ))}
+              {loading && <TypingIndicator />}
+              <div ref={bottomRef} />
+            </div>
           </div>
         )}
       </main>
@@ -159,10 +288,22 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
   },
-  messages: {
+  scrollArea: {
     flex: 1,
     overflowY: 'auto',
-    padding: '20px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  threadDivider: {
+    height: '1px',
+    background: 'var(--border)',
+    margin: '10px 16px 0',
+    maxWidth: '720px',
+    width: 'calc(100% - 32px)',
+    alignSelf: 'center',
+  },
+  messages: {
+    padding: '16px 16px 20px',
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
