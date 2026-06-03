@@ -18,48 +18,81 @@ The LLM (Groq) calls tools. perso intercepts every tool call intent before execu
 
 ---
 
-## Setup
+## Running the demo
 
-### Prerequisites
+### Step 1 — Prerequisites
 
-- Node.js 18+
-- pnpm 11+: `npm i -g pnpm`
-- `perso.wasm` binary → place at `backend/src/wasm/perso.wasm`
-- Groq API key → [get one free](https://console.groq.com/keys)
+Make sure you have the following installed:
 
-### Install
+- **Node.js 18+** — [nodejs.org](https://nodejs.org)
+- **pnpm 11+** — install with `npm i -g pnpm`
+- **Rust + wasm32 target** — needed to build `perso.wasm` (see Step 3)
+- **Groq API key** — get one free at [console.groq.com/keys](https://console.groq.com/keys)
+
+### Step 2 — Clone and install
 
 ```bash
+git clone https://github.com/your-org/perso-demo.git
+cd perso-demo
 pnpm install
 ```
 
-### Configure
+### Step 3 — Build perso.wasm
+
+Clone the perso engine repo and compile the WASM binary:
+
+```bash
+git clone https://github.com/your-org/perso.git
+cd perso
+
+# Add the WASM compilation target (one-time setup)
+rustup target add wasm32-unknown-unknown
+
+# Build the WASM binary
+cargo run -p policy-compiler -- build \
+  --policy policies/example.json \
+  --output dist/policy_runtime.wasm
+
+# Copy the binary into perso-demo
+cp dist/policy_runtime.wasm /path/to/perso-demo/backend/src/wasm/perso.wasm
+```
+
+### Step 4 — Configure environment variables
 
 ```bash
 cp backend/.env.example backend/.env
-# open backend/.env and set:
-#   GROQ_API_KEY — your Groq API key
-#   GROQ_MODEL   — e.g. llama-3.1-8b-instant
 ```
 
-### Run
+Open `backend/.env` and fill in the values:
 
-```bash
-pnpm dev          # frontend :5173 + backend :3001
+```env
+# Server
+PORT=3001
+FRONTEND_URL=http://localhost:5173
+
+# Groq — get a free key at https://console.groq.com/keys
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama-3.1-8b-instant
 ```
-
-The status banner at the top of the UI will turn green once both the policy engine and Groq are ready.
-
----
-
-## Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
 | `PORT` | no | Backend port (default: `3001`) |
 | `FRONTEND_URL` | no | CORS origin (default: `http://localhost:5173`) |
-| `GROQ_API_KEY` | yes | Groq API key from [console.groq.com/keys](https://console.groq.com/keys) |
-| `GROQ_MODEL` | yes | Groq model ID, e.g. `llama-3.1-8b-instant` |
+| `GROQ_API_KEY` | **yes** | Your Groq API key |
+| `GROQ_MODEL` | **yes** | Groq model ID — `llama-3.1-8b-instant` recommended |
+
+### Step 5 — Run
+
+```bash
+pnpm dev
+```
+
+This starts both services concurrently:
+- Frontend → http://localhost:5173
+- Backend → http://localhost:3001
+
+Open http://localhost:5173 in your browser. The status banner at the top will turn green once both the policy engine (WASM) and Groq are ready.
 
 ---
 
@@ -142,20 +175,21 @@ perso-demo/
 ├── backend/
 │   ├── src/
 │   │   ├── lib/
-│   │   │   ├── perso.ts        ← WASM bridge (alloc/dealloc/init/evaluate)
+│   │   │   ├── perso.ts      ← WASM bridge (alloc/dealloc/init/evaluate)
 │   │   │   ├── groq.ts       ← Groq client + two-step function calling flow
 │   │   │   ├── groqTools.ts  ← Groq tool definitions for 4 mock tools
-│   │   │   ├── mockTools.ts    ← fake filesystem implementations
-│   │   │   └── types.ts        ← shared domain types
+│   │   │   ├── mockTools.ts  ← fake filesystem implementations
+│   │   │   └── types.ts      ← shared domain types
 │   │   ├── routes/
-│   │   │   ├── health.ts       ← GET /health (wasm + llm feature flags)
-│   │   │   ├── evaluate.ts     ← POST /evaluate (raw perso evaluation)
-│   │   │   └── chat.ts         ← POST /chat (Groq + perso interception)
+│   │   │   ├── health.ts     ← GET /health (wasm + llm feature flags)
+│   │   │   ├── evaluate.ts   ← POST /evaluate (raw perso evaluation)
+│   │   │   └── chat.ts       ← POST /chat (Groq + perso interception)
 │   │   ├── wasm/
-│   │   │   ├── policy.json     ← perso policy definition
-│   │   │   └── perso.wasm      ← engine binary (not in repo)
+│   │   │   ├── policy.json   ← perso policy definition
+│   │   │   └── perso.wasm    ← engine binary (not in repo — see Step 3)
 │   │   └── index.ts
-│   └── .env.example
+│   ├── .env.example          ← copy to .env and fill in values
+│   └── .env                  ← gitignored — never commit this
 ├── frontend/
 │   ├── src/
 │   │   ├── components/chat/
@@ -180,8 +214,8 @@ perso-demo/
 
 ```bash
 pnpm dev              # both services
-pnpm dev:backend
-pnpm dev:frontend
+pnpm dev:backend      # backend only
+pnpm dev:frontend     # frontend only
 pnpm build            # production build (frontend)
 pnpm typecheck        # tsc --noEmit both packages
 ```
