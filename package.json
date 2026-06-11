@@ -10,6 +10,6 @@
     "typecheck": "pnpm --filter perso-demo-backend typecheck && pnpm --filter perso-demo-frontend typecheck"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^10.0.3"
   }
 }

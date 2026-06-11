@@ -1,4 +1,4 @@
-import type { Perso } from 'perso-sdk'
+import type { Perso } from '@teknokeras/perso-sdk'
 
 let instance: Perso | null = null
 

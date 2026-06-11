@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { Perso } from 'perso-sdk';
+import { Perso } from '@teknokeras/perso-sdk';
 import { setPerso } from './lib/persoInstance.js';
 import { initGroq } from './lib/groq.js';
 import healthRouter from './routes/health.js';

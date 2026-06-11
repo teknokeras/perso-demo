@@ -5,3 +5,5 @@ allowBuilds:
   '@google/genai': true
   esbuild: true
   protobufjs: true
+minimumReleaseAgeExclude:
+  - '@teknokeras/perso-sdk@0.1.0'
