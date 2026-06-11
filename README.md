@@ -1,6 +1,6 @@
 # perso-demo
 
-Interactive demo of [perso](https://github.com/your-org/perso) — a WebAssembly policy enforcement engine for MCP tool calls.
+Interactive demo of [perso](https://github.com/teknokeras/perso) — a WebAssembly policy enforcement engine for MCP tool calls.
 
 The LLM (Groq) calls tools. perso intercepts every tool call intent before execution and returns Allow or Deny based on the caller's role. The UI shows the decision inline — green for allow, red for deny — alongside the reason from the policy engine.
 
@@ -13,8 +13,31 @@ The LLM (Groq) calls tools. perso intercepts every tool call intent before execu
 | Frontend | React 18 + Vite + TanStack Router — TypeScript |
 | Backend | Node.js + Express — TypeScript (`tsx` dev) |
 | LLM | Groq (free tier) — `llama-3.1-8b-instant` via `groq-sdk` |
-| Policy engine | `perso.wasm` — Node.js built-in `WebAssembly`, no extra packages |
+| Policy engine | [`perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm` |
 | Package manager | pnpm 11 workspaces |
+
+---
+
+## How perso-sdk is used
+
+The backend uses [`perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — the official Node.js SDK for the perso engine. The SDK wraps the raw WASM ABI (`alloc`/`dealloc`/`init`/`evaluate`) behind a clean async API and handles audit logging via pluggable transports.
+
+```typescript
+import { Perso } from 'perso-sdk'
+
+const perso = await Perso.load('path/to/perso.wasm', {
+  policy: 'path/to/policy.json',
+})
+
+const decision = await perso.evaluate({
+  tool: 'delete_file',
+  args: { path: '/etc/passwd' },
+  role: 'viewer',
+})
+// { decision: 'Deny', reason: '...' }
+```
+
+The SDK is loaded once at startup in `backend/src/index.ts` and the instance is shared across routes via `backend/src/lib/persoInstance.ts`. Every tool call intent from the LLM passes through `perso.evaluate()` before any tool is executed.
 
 ---
 
@@ -32,7 +55,7 @@ Make sure you have the following installed:
 ### Step 2 — Clone and install
 
 ```bash
-git clone https://github.com/your-org/perso-demo.git
+git clone https://github.com/teknokeras/perso-demo.git
 cd perso-demo
 pnpm install
 ```
@@ -42,7 +65,7 @@ pnpm install
 Clone the perso engine repo and compile the WASM binary:
 
 ```bash
-git clone https://github.com/your-org/perso.git
+git clone https://github.com/teknokeras/perso.git
 cd perso
 
 # Add the WASM compilation target (one-time setup)
@@ -53,8 +76,9 @@ cargo run -p policy-compiler -- build \
   --policy policies/example.json \
   --output dist/policy_runtime.wasm
 
-# Copy the binary into perso-demo
-cp dist/policy_runtime.wasm /path/to/perso-demo/backend/src/wasm/perso.wasm
+# Copy the binary and policy into perso-demo
+cp dist/policy_runtime.wasm /path/to/perso-demo/backend/wasm/perso.wasm
+cp policies/example.json /path/to/perso-demo/backend/wasm/policy.json
 ```
 
 ### Step 4 — Configure environment variables
@@ -88,7 +112,7 @@ GROQ_MODEL=llama-3.1-8b-instant
 pnpm dev
 ```
 
-This starts both services concurrently:
+This starts both services concurrently from the root directory:
 - Frontend → http://localhost:5173
 - Backend → http://localhost:3001
 
@@ -175,21 +199,21 @@ perso-demo/
 ├── backend/
 │   ├── src/
 │   │   ├── lib/
-│   │   │   ├── perso.ts      ← WASM bridge (alloc/dealloc/init/evaluate)
-│   │   │   ├── groq.ts       ← Groq client + two-step function calling flow
-│   │   │   ├── groqTools.ts  ← Groq tool definitions for 4 mock tools
-│   │   │   ├── mockTools.ts  ← fake filesystem implementations
-│   │   │   └── types.ts      ← shared domain types
+│   │   │   ├── persoInstance.ts  ← perso-sdk singleton (shared across routes)
+│   │   │   ├── groq.ts           ← Groq client + two-step function calling flow
+│   │   │   ├── groqTools.ts      ← Groq tool definitions for 4 mock tools
+│   │   │   ├── mockTools.ts      ← fake filesystem implementations
+│   │   │   └── types.ts          ← shared domain types
 │   │   ├── routes/
-│   │   │   ├── health.ts     ← GET /health (wasm + llm feature flags)
-│   │   │   ├── evaluate.ts   ← POST /evaluate (raw perso evaluation)
-│   │   │   └── chat.ts       ← POST /chat (Groq + perso interception)
-│   │   ├── wasm/
-│   │   │   ├── policy.json   ← perso policy definition
-│   │   │   └── perso.wasm    ← engine binary (not in repo — see Step 3)
+│   │   │   ├── health.ts         ← GET /health (wasm + llm feature flags)
+│   │   │   ├── evaluate.ts       ← POST /evaluate (raw perso evaluation)
+│   │   │   └── chat.ts           ← POST /chat (Groq + perso interception)
 │   │   └── index.ts
-│   ├── .env.example          ← copy to .env and fill in values
-│   └── .env                  ← gitignored — never commit this
+│   ├── wasm/                     ← engine binary and policy (not in repo)
+│   │   ├── policy.json           ← perso policy definition
+│   │   └── perso.wasm            ← compiled engine binary (see Step 3)
+│   ├── .env.example              ← copy to .env and fill in values
+│   └── .env                      ← gitignored — never commit this
 ├── frontend/
 │   ├── src/
 │   │   ├── components/chat/
@@ -213,9 +237,18 @@ perso-demo/
 ## pnpm scripts
 
 ```bash
-pnpm dev              # both services
+pnpm dev              # start both frontend and backend from root
 pnpm dev:backend      # backend only
 pnpm dev:frontend     # frontend only
 pnpm build            # production build (frontend)
 pnpm typecheck        # tsc --noEmit both packages
 ```
+
+---
+
+## Related repos
+
+| Repo | Description |
+|---|---|
+| [teknokeras/perso](https://github.com/teknokeras/perso) | Rust/WASM policy engine |
+| [teknokeras/perso-sdk-node](https://github.com/teknokeras/perso-sdk-node) | Node.js SDK used by this demo |
