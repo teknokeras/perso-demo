@@ -8,6 +8,7 @@ import ChatMessage, { type MessageData } from '../components/chat/ChatMessage';
 import TypingIndicator from '../components/chat/TypingIndicator';
 import EmptyState from '../components/chat/EmptyState';
 import ChatInput from '../components/chat/ChatInput';
+import { Link } from '@tanstack/react-router';
 
 let idCounter = 0;
 const uid = () => String(++idCounter);
@@ -35,7 +36,7 @@ const ROLE_PROMPTS: Record<Role, { text: string; willDeny?: boolean }[]> = {
   ],
 };
 
-// ── Quick action bar (shown above messages) ───────────────────────────────────
+// ── Quick action bar ──────────────────────────────────────────────────────────
 
 function QuickActions({ role, onPrompt, disabled }: {
   role: Role;
@@ -63,17 +64,17 @@ function QuickActions({ role, onPrompt, disabled }: {
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 opacity: disabled ? 0.5 : 1,
                 background: isHovered
-                  ? (p.willDeny ? 'var(--deny-bg)' : 'var(--bg-subtle)')
-                  : 'var(--bg-elevated)',
+                  ? (p.willDeny ? '#FEF2F2' : '#F3F4F6')
+                  : '#fff',
                 borderColor: isHovered
-                  ? (p.willDeny ? 'var(--deny-border)' : 'var(--border-strong)')
-                  : 'var(--border)',
-                color: isHovered ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  ? (p.willDeny ? '#FCCFCF' : '#D1D5DB')
+                  : '#E5E7EB',
+                color: isHovered ? '#111827' : '#6B7280',
               }}
             >
               <span style={{
                 ...qa.icon,
-                color: p.willDeny ? 'var(--deny)' : 'var(--text-muted)',
+                color: p.willDeny ? '#E24B4A' : '#9CA3AF',
               }}>
                 {p.willDeny ? '✗' : '→'}
               </span>
@@ -98,15 +99,15 @@ const qa: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   label: {
-    fontFamily: 'var(--font-mono)',
+    fontFamily: "'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace",
     fontSize: '10px',
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
+    color: '#9CA3AF',
+    textTransform: 'uppercase' as const,
     letterSpacing: '0.08em',
   },
   list: {
     display: 'flex',
-    flexWrap: 'wrap',
+    flexWrap: 'wrap' as const,
     gap: '6px',
   },
   btn: {
@@ -114,15 +115,16 @@ const qa: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '6px',
     padding: '5px 10px',
-    borderRadius: 'var(--r-sm)',
-    border: '1px solid',
+    borderRadius: '5px',
+    border: '0.5px solid',
     fontSize: '12px',
-    fontFamily: 'var(--font-sans)',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
     transition: 'background 0.1s, border-color 0.1s, color 0.1s',
-    whiteSpace: 'nowrap',
+    whiteSpace: 'nowrap' as const,
+    background: '#fff',
   },
   icon: {
-    fontFamily: 'var(--font-mono)',
+    fontFamily: "'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace",
     fontSize: '11px',
     flexShrink: 0,
   },
@@ -130,7 +132,7 @@ const qa: Record<string, React.CSSProperties> = {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function IndexPage() {
+export default function DemoPage() {
   const [role, setRole] = useState<Role>('viewer');
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [input, setInput] = useState('');
@@ -179,58 +181,89 @@ export default function IndexPage() {
   const hasMessages = messages.length > 0 || loading;
 
   return (
-    <div style={styles.shell}>
+    <>
+      {/* ── Light theme overrides ── */}
+      <style>{`
+        .demo-shell {
+          --bg-base:      #FFFFFF;
+          --bg-surface:   #F9FAFB;
+          --bg-elevated:  #FFFFFF;
+          --bg-subtle:    #F3F4F6;
+          --border:       #E5E7EB;
+          --border-strong: #D1D5DB;
+          --text-primary:   #111827;
+          --text-secondary: #374151;
+          --text-tertiary:  #6B7280;
+          --text-muted:     #9CA3AF;
+          --allow:        #1D9E75;
+          --allow-bg:     #F0FAF6;
+          --allow-border: #A8DFC9;
+          --deny:         #E24B4A;
+          --deny-bg:      #FEF2F2;
+          --deny-border:  #FCCFCF;
+          --font-sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+          --font-mono:    'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+          --r-sm: 5px;
+          --r-md: 7px;
+          --r-lg: 10px;
+        }
+      `}</style>
 
-      {/* ── Top bar ── */}
-      <header style={styles.topbar}>
-        <div style={styles.brand}>
-          <span style={styles.brandIcon}>🔐</span>
-          <span style={styles.brandName}>perso-demo</span>
-          <span style={styles.brandSep}>·</span>
-          <span style={styles.brandSub}>policy enforcement</span>
-        </div>
-        <div style={styles.topbarRight}>
-          <RoleSelector value={role} onChange={handleRoleChange} disabled={loading} />
-          <div style={styles.divider} />
-          <PolicySidebar role={role} />
-        </div>
-      </header>
+      <div className="demo-shell" style={styles.shell}>
 
-      {/* ── Status banner ── */}
-      <StatusBanner />
-
-      {/* ── Message thread ── */}
-      <main style={styles.thread}>
-        {!hasMessages ? (
-          <EmptyState role={role} onPrompt={(p) => send(p)} />
-        ) : (
-          <div style={styles.scrollArea}>
-            {/* Quick actions — always visible above messages */}
-            <QuickActions role={role} onPrompt={send} disabled={loading} />
-
-            {/* Divider */}
-            <div style={styles.threadDivider} />
-
-            {/* Messages */}
-            <div style={styles.messages}>
-              {messages.map((m) => (
-                <ChatMessage key={m.id} message={m} />
-              ))}
-              {loading && <TypingIndicator />}
-              <div ref={bottomRef} />
+        {/* ── Top bar ── */}
+        <header style={styles.topbar}>
+          <div style={styles.topbarLeft}>
+            <Link to="/" style={styles.backLink}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </Link>
+            <div style={styles.brand}>
+              <span style={styles.logoDot} />
+              <span style={styles.brandName}>perso</span>
+              <span style={styles.brandSep}>·</span>
+              <span style={styles.brandSub}>live demo</span>
             </div>
           </div>
-        )}
-      </main>
+          <div style={styles.topbarRight}>
+            <RoleSelector value={role} onChange={handleRoleChange} disabled={loading} />
+            <div style={styles.divider} />
+            <PolicySidebar role={role} />
+          </div>
+        </header>
 
-      {/* ── Input ── */}
-      <ChatInput
-        value={input}
-        onChange={setInput}
-        onSend={() => send(input)}
-        disabled={loading}
-      />
-    </div>
+        {/* ── Status banner ── */}
+        <StatusBanner />
+
+        {/* ── Message thread ── */}
+        <main style={styles.thread}>
+          {!hasMessages ? (
+            <EmptyState role={role} onPrompt={(p) => send(p)} />
+          ) : (
+            <div style={styles.scrollArea}>
+              <QuickActions role={role} onPrompt={send} disabled={loading} />
+              <div style={styles.threadDivider} />
+              <div style={styles.messages}>
+                {messages.map((m) => (
+                  <ChatMessage key={m.id} message={m} />
+                ))}
+                {loading && <TypingIndicator />}
+                <div ref={bottomRef} />
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ── Input ── */}
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSend={() => send(input)}
+          disabled={loading}
+        />
+      </div>
+    </>
   );
 }
 
@@ -241,6 +274,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     background: 'var(--bg-base)',
     overflow: 'hidden',
+    fontFamily: 'var(--font-sans)',
+    WebkitFontSmoothing: 'antialiased',
   },
   topbar: {
     display: 'flex',
@@ -248,10 +283,24 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '0 16px',
     height: '52px',
-    borderBottom: '1px solid var(--border)',
+    borderBottom: '0.5px solid var(--border)',
     background: 'var(--bg-surface)',
     flexShrink: 0,
     gap: '12px',
+  },
+  topbarLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  backLink: {
+    display: 'flex',
+    alignItems: 'center',
+    color: 'var(--text-muted)',
+    padding: '4px',
+    borderRadius: '5px',
+    transition: 'color 0.15s',
+    textDecoration: 'none',
   },
   brand: {
     display: 'flex',
@@ -259,7 +308,14 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px',
     flexShrink: 0,
   },
-  brandIcon: { fontSize: '16px' },
+  logoDot: {
+    width: 8,
+    height: 8,
+    background: '#1D9E75',
+    borderRadius: '50%',
+    flexShrink: 0,
+    display: 'inline-block',
+  },
   brandName: {
     fontFamily: 'var(--font-mono)',
     fontSize: '13px',
@@ -295,7 +351,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
   },
   threadDivider: {
-    height: '1px',
+    height: '0.5px',
     background: 'var(--border)',
     margin: '10px 16px 0',
     maxWidth: '720px',

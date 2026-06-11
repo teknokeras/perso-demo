@@ -1,5 +1,7 @@
+// routeTree.tsx
 import { createRootRoute, createRoute, Outlet } from '@tanstack/react-router';
-import IndexPage from './pages/Index';
+import LandingPage from './pages/Landing';
+import DemoPage from './pages/Demo';
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -8,7 +10,13 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: IndexPage,
+  component: LandingPage,
 });
 
-export const routeTree = rootRoute.addChildren([indexRoute]);
+const demoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/demo',
+  component: DemoPage,
+});
+
+export const routeTree = rootRoute.addChildren([indexRoute, demoRoute]);
