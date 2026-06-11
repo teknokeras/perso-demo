@@ -16,7 +16,7 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionToolMessageParam,
 } from 'groq-sdk/resources/chat/completions.js';
-import { persoEvaluate } from './perso.js';
+// import { persoEvaluate } from './perso.js';
 import { executeMockTool } from './mockTools.js';
 import { GROQ_TOOLS } from './groqTools.js';
 import type {
@@ -26,6 +26,7 @@ import type {
   Role,
   ToolName,
 } from './types.js';
+import { getPerso } from './persoInstance.js';
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
@@ -97,7 +98,14 @@ export async function chat(
   const toolName = toolCall.function.name as ToolName;
   const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
 
-  const persoResult = persoEvaluate(toolName, toolArgs, role);
+  // const persoResult = persoEvaluat(toolName, toolArgs, role);
+  const persoResult = await getPerso()!.evaluate({
+    tool: toolName,
+    args: toolArgs,
+    role,
+    agentAttributes: {},
+    resourceAttributes: {},
+  });
 
   const trace: PersoTrace = {
     toolName,

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { persoEvaluate, isPersoReady } from '../lib/perso.js';
+import { getPerso, isPersoReady } from '../lib/persoInstance.js';
 import { executeMockTool } from '../lib/mockTools.js';
 import type {
   EvaluateRequestBody,
@@ -13,7 +13,7 @@ const router = Router();
 
 router.post(
   '/',
-  (req: Request<object, EvaluateResponseBody, EvaluateRequestBody>, res: Response) => {
+  async (req: Request<object, EvaluateResponseBody, EvaluateRequestBody>, res: Response) => {
     // ── Guard: WASM must be ready ───────────────────────────────────────────
     if (!isPersoReady()) {
       res.status(503).json({
@@ -50,13 +50,20 @@ router.post(
     }
 
     // ── Ask perso ───────────────────────────────────────────────────────────
-    const evaluation = persoEvaluate(
-      toolName,
+    // const evaluation = persoEvaluate(
+    //   toolName,
+    //   args,
+    //   role,
+    //   agentAttributes,
+    //   resourceAttributes,
+    // );
+    const evaluation = await getPerso()!.evaluate({
+      tool: toolName,
       args,
       role,
       agentAttributes,
       resourceAttributes,
-    );
+    })
 
     // ── Execute mock tool only if allowed ───────────────────────────────────
     let result: string | undefined;
@@ -66,7 +73,7 @@ router.post(
 
     const response: EvaluateResponseBody = {
       decision: evaluation.decision,
-      reason:   evaluation.reason,
+      reason: evaluation.reason,
       toolName,
       role,
       result,

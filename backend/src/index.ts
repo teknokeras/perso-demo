@@ -1,11 +1,16 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { loadPerso } from './lib/perso.js';
+import { Perso } from 'perso-sdk';
+import { setPerso } from './lib/persoInstance.js';
 import { initGroq } from './lib/groq.js';
 import healthRouter from './routes/health.js';
 import evaluateRouter from './routes/evaluate.js';
 import chatRouter from './routes/chat.js';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -36,9 +41,20 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 async function start() {
+  const wasmPath = resolve(__dirname, '../wasm/perso.wasm');
+  const policyPath = resolve(__dirname, '../wasm/policy.json');
   // perso WASM — non-fatal if binary not present yet
   try {
-    await loadPerso();
+    // await loadPerso();
+    const perso = await Perso.load(wasmPath, {
+      policy: policyPath,
+      audit: {
+        // TODO: swap for persoTransport({ apiKey }) when managed service is ready
+        enabled: false,
+      },
+    })
+    setPerso(perso)
+    console.log('[perso] WASM loaded and policy initialised')
   } catch (err) {
     console.warn('[perso] WASM not loaded:', (err as Error).message);
     console.warn('[perso] Drop perso.wasm into backend/src/wasm/ and restart');

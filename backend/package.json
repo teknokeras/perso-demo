@@ -14,7 +14,8 @@
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.0.0",
-    "groq-sdk": "^1.2.1"
+    "groq-sdk": "^1.2.1",
+    "perso-sdk": "file:../../perso-sdk-node"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

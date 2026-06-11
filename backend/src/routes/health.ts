@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { isPersoReady } from '../lib/perso.js';
 import { isGroqReady } from '../lib/groq.js';
+import { isPersoReady } from '../lib/persoInstance.js';
 
 const router = Router();
 

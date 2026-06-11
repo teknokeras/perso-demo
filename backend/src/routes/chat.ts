@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { chat, isGroqReady } from '../lib/groq.js';
-import { isPersoReady } from '../lib/perso.js';
+import { isPersoReady } from '../lib/persoInstance.js';
 import type { ChatRequestBody, ChatResponseBody, Role } from '../lib/types.js';
 import { ROLES } from '../lib/types.js';
 
