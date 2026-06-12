@@ -11,11 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@notionhq/client": "^5.22.0",
     "@teknokeras/perso-sdk": "^0.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.0.0",
-    "googleapis": "^173.0.0",
     "groq-sdk": "^1.2.1"
   },
   "devDependencies": {

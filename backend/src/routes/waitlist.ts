@@ -1,10 +1,10 @@
+// backend/src/routes/waitlist.ts
 import { Router, Request, Response } from 'express';
-import { getSheets } from '../lib/googleSheets.js';
+import { getNotion } from '../lib/notion.js';
 
 const router = Router();
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SHEET_RANGE = 'Sheet1!A:B'; // col A = email, col B = timestamp
 
 // ── In-memory rate limiter ────────────────────────────────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -25,9 +25,10 @@ function isRateLimited(ip: string): boolean {
 
 // ── POST /waitlist ────────────────────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim()
-        ?? req.socket.remoteAddress
-        ?? 'unknown';
+    const ip =
+        (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ??
+        req.socket.remoteAddress ??
+        'unknown';
 
     if (isRateLimited(ip)) {
         return res.status(429).json({ error: 'Too many requests. Please try again later.' });
@@ -42,35 +43,36 @@ router.post('/', async (req: Request, res: Response) => {
     const normalised = email.trim().toLowerCase();
 
     try {
-        const sheets = getSheets();
-        const sheetId = process.env.GOOGLE_SHEET_ID!;
+        const notion = getNotion();
+        const databaseId = process.env.NOTION_DATABASE_ID!;
 
         // ── Duplicate check ───────────────────────────────────────────────────────
-        const existing = await sheets.spreadsheets.values.get({
-            spreadsheetId: sheetId,
-            range: 'Sheet1!A:A',
-        });
-
-        const rows = existing.data.values ?? [];
-        const alreadyExists = rows.some(
-            ([existingEmail]) => existingEmail?.toLowerCase() === normalised
-        );
-
-        if (alreadyExists) {
-            return res.status(409).json({ error: 'This email is already on the waitlist.' });
-        }
-
-        // ── Append ────────────────────────────────────────────────────────────────
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: sheetId,
-            range: SHEET_RANGE,
-            valueInputOption: 'RAW',
-            requestBody: {
-                values: [[normalised, new Date().toISOString()]],
+        const existing = await notion.dataSources.query({
+            data_source_id: databaseId,
+            filter: {
+                property: 'Email',
+                email: { equals: normalised },
             },
         });
 
-        return res.status(201).json({ message: 'You\'re on the waitlist!' });
+        if (existing.results.length > 0) {
+            return res.status(409).json({ error: 'This email is already on the waitlist.' });
+        }
+
+        // ── Insert ────────────────────────────────────────────────────────────────
+        await notion.pages.create({
+            parent: { database_id: databaseId },
+            properties: {
+                Email: {
+                    email: normalised,
+                },
+                'Created At': {
+                    date: { start: new Date().toISOString() },
+                },
+            },
+        });
+
+        return res.status(201).json({ message: "You're on the waitlist!" });
     } catch (err) {
         console.error('[waitlist]', err);
         return res.status(500).json({ error: 'Failed to save. Please try again.' });
