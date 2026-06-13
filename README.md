@@ -62,6 +62,8 @@ pnpm install
 
 ### Step 3 — Build perso.wasm
 
+This repo already contain pero.wasm and policy.json. So this step is for those who wants to generate their own.
+If you want to quick run you can skip this step.
 Clone the perso engine repo and compile the WASM binary:
 
 ```bash
