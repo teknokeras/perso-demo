@@ -390,12 +390,33 @@ function DemoWidget() {
 
 function WaitlistSection() {
     const [email, setEmail] = useState('');
-    const [submitted, setSubmitted] = useState(false);
+    const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
-    function handleJoin() {
+    async function handleJoin() {
         if (!email || !email.includes('@')) return;
-        setSubmitted(true);
-        setEmail('');
+        setStatus('loading');
+
+        try {
+            const res = await fetch('https://api.web3forms.com/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_key: import.meta.env.VITE_WEB3FORMS_KEY,// ← paste your key
+                    email,
+                    subject: 'New perso waitlist signup',
+                }),
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                setStatus('success');
+                setEmail('');
+            } else {
+                setStatus('error');
+            }
+        } catch {
+            setStatus('error');
+        }
     }
 
     return (
@@ -422,6 +443,7 @@ function WaitlistSection() {
                         onChange={e => setEmail(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleJoin()}
                         placeholder="you@company.com"
+                        disabled={status === 'loading' || status === 'success'}
                         style={{
                             flex: 1,
                             padding: '9px 14px',
@@ -432,13 +454,29 @@ function WaitlistSection() {
                             outline: 'none',
                             background: '#fff',
                             color: '#111827',
+                            opacity: status === 'success' ? 0.5 : 1,
                         }}
                     />
-                    <button onClick={handleJoin} style={primaryBtnStyle}>join waitlist</button>
+                    <button
+                        onClick={handleJoin}
+                        disabled={status === 'loading' || status === 'success'}
+                        style={{
+                            ...primaryBtnStyle,
+                            opacity: status === 'loading' || status === 'success' ? 0.6 : 1,
+                            cursor: status === 'loading' || status === 'success' ? 'default' : 'pointer',
+                        }}
+                    >
+                        {status === 'loading' ? 'joining...' : 'join waitlist'}
+                    </button>
                 </div>
-                {submitted && (
+                {status === 'success' && (
                     <div style={{ marginTop: 10, fontSize: 13, color: '#1D9E75' }}>
                         You're on the list. We'll be in touch.
+                    </div>
+                )}
+                {status === 'error' && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#E24B4A' }}>
+                        Something went wrong. Try again or email us directly.
                     </div>
                 )}
             </div>
