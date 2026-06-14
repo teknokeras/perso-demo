@@ -1,30 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Role = 'viewer' | 'supervisor' | 'admin';
-type Verdict = 'allow' | 'deny';
-
-interface UserMessage {
-    type: 'user';
-    text: string;
-}
-
-interface AssistantMessage {
-    type: 'assistant';
-    verdict: Verdict;
-    tool: string;
-    reason: string;
-    reply: string;
-}
-
-type ConvoMessage = UserMessage | AssistantMessage;
 
 interface RoleConfig {
     allowed: string[];
     denied: string[];
-    convo: ConvoMessage[];
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -35,68 +17,14 @@ const ROLES: Record<Role, RoleConfig> = {
     viewer: {
         allowed: ['read_file'],
         denied: ['update_file', 'create_file', 'delete_file'],
-        convo: [
-            { type: 'user', text: 'delete /etc/config.json' },
-            {
-                type: 'assistant',
-                verdict: 'deny',
-                tool: 'delete_file',
-                reason: "no rule matched tool 'delete_file' for role 'viewer' — applying default_action: Deny",
-                reply: "I'm not able to delete files with your current permissions. Your role only has read access.",
-            },
-            { type: 'user', text: 'read /home/user/notes.txt' },
-            {
-                type: 'assistant',
-                verdict: 'allow',
-                tool: 'read_file',
-                reason: "rule matched: role 'viewer' has read_file access — decision: Allow",
-                reply: "Here's the content of /home/user/notes.txt: ...",
-            },
-        ],
     },
     supervisor: {
         allowed: ['read_file', 'update_file'],
         denied: ['create_file', 'delete_file'],
-        convo: [
-            { type: 'user', text: 'delete /etc/config.json' },
-            {
-                type: 'assistant',
-                verdict: 'deny',
-                tool: 'delete_file',
-                reason: "no rule matched tool 'delete_file' for role 'supervisor' — applying default_action: Deny",
-                reply: "I'm not able to delete files with your current permissions. Deletion requires admin access.",
-            },
-            { type: 'user', text: "update /home/user/notes.txt with today's summary" },
-            {
-                type: 'assistant',
-                verdict: 'allow',
-                tool: 'update_file',
-                reason: "rule matched: role 'supervisor' has update_file access — decision: Allow",
-                reply: "Done — notes.txt updated with today's summary.",
-            },
-        ],
     },
     admin: {
         allowed: ['read_file', 'update_file', 'create_file', 'delete_file'],
         denied: [],
-        convo: [
-            { type: 'user', text: 'delete /tmp/old-logs' },
-            {
-                type: 'assistant',
-                verdict: 'allow',
-                tool: 'delete_file',
-                reason: "rule matched: role 'admin' has delete_file access — decision: Allow",
-                reply: 'Done — /tmp/old-logs has been deleted.',
-            },
-            { type: 'user', text: 'create /etc/config-backup.json' },
-            {
-                type: 'assistant',
-                verdict: 'allow',
-                tool: 'create_file',
-                reason: "rule matched: role 'admin' has create_file access — decision: Allow",
-                reply: 'Done — config-backup.json created at /etc/.',
-            },
-        ],
     },
 };
 
@@ -127,266 +55,304 @@ function IconNpm() {
     );
 }
 
-function IconFile() {
+function IconPlay() {
     return (
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="5 3 19 12 5 21 5 3" />
         </svg>
     );
 }
 
-function IconCheck() {
+function IconExternalLink() {
     return (
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
         </svg>
     );
 }
 
-function IconX() {
-    return (
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-    );
-}
+// ─── Video Section ─────────────────────────────────────────────────────────────
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// To embed a video:
+// - Loom: replace the src with your Loom embed URL
+//   e.g. https://www.loom.com/embed/YOUR_VIDEO_ID
+// - YouTube: replace the src with your YouTube embed URL
+//   e.g. https://www.youtube.com/embed/YOUR_VIDEO_ID
+//
+// Set VIDEO_EMBED_URL to your embed URL, or leave as null to show the placeholder.
+const VIDEO_EMBED_URL: string | null = null;
 
-function TraceBlock({ msg, role }: { msg: AssistantMessage; role: Role }) {
-    const isAllow = msg.verdict === 'allow';
-    return (
-        <div style={{
-            borderRadius: 7,
-            padding: '10px 14px',
-            background: isAllow ? '#F0FAF6' : '#FEF2F2',
-            border: `0.5px solid ${isAllow ? '#A8DFC9' : '#FCCFCF'}`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-        }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
-                <div style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    background: isAllow ? '#1D9E75' : '#E24B4A',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                }}>
-                    {isAllow ? <IconCheck /> : <IconX />}
-                </div>
-                <span style={{
-                    fontFamily: 'var(--mono)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: isAllow ? '#1D9E75' : '#E24B4A',
-                }}>
-                    {isAllow ? 'Allow' : 'Deny'}
-                </span>
-                <span style={pillStyle}>{msg.tool}</span>
-                <span style={pillStyle}>role: {role}</span>
-            </div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, lineHeight: 1.5 }}>
-                {msg.reason}
-            </div>
-        </div>
-    );
-}
-
-const pillStyle: React.CSSProperties = {
-    fontFamily: 'var(--mono)',
-    fontSize: 11.5,
-    padding: '2px 7px',
-    borderRadius: 4,
-    background: 'rgba(0,0,0,0.06)',
-    color: '#111827',
-};
-
-function ChatArea({ role }: { role: Role }) {
-    const convo = ROLES[role].convo;
-    const [visible, setVisible] = useState(0);
-
-    useEffect(() => {
-        setVisible(0);
-        convo.forEach((_, i) => {
-            setTimeout(() => setVisible(i + 1), i * 80 + 40);
-        });
-    }, [role]);
-
-    return (
-        <div style={{
-            padding: '20px 20px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            minHeight: 320,
-            background: '#fff',
-        }}>
-            {convo.map((msg, i) => {
-                const shown = i < visible;
-                const style: React.CSSProperties = {
-                    opacity: shown ? 1 : 0,
-                    transform: shown ? 'none' : 'translateY(6px)',
-                    transition: 'opacity 0.2s ease, transform 0.2s ease',
-                };
-
-                if (msg.type === 'user') {
-                    return (
-                        <div key={i} style={{
-                            ...style,
-                            alignSelf: 'flex-end',
-                            background: '#F9FAFB',
-                            border: '0.5px solid #E5E7EB',
-                            borderRadius: '10px 10px 2px 10px',
-                            padding: '8px 14px',
-                            fontSize: 14,
-                            maxWidth: '60%',
-                            fontFamily: 'var(--mono)',
-                        }}>
-                            {msg.text}
-                        </div>
-                    );
-                }
-
-                return (
-                    <div key={i} style={{
-                        ...style,
-                        alignSelf: 'flex-start',
-                        maxWidth: '90%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                    }}>
-                        <TraceBlock msg={msg} role={role} />
-                        <div style={{ fontSize: 14, color: '#111827', lineHeight: 1.6, paddingLeft: 2 }}>
-                            {msg.reply}
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-function PolicyStrip({ role }: { role: Role }) {
-    const cfg = ROLES[role];
-    return (
-        <div style={{
-            borderTop: '0.5px solid #E5E7EB',
-            background: '#F9FAFB',
-            padding: '12px 16px',
-        }}>
-            <div style={{
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: '0.07em',
-                color: '#9CA3AF',
-                fontWeight: 500,
-                marginBottom: 8,
-            }}>
-                active rules for {role}
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {ALL_TOOLS.map(tool => {
-                    const allowed = cfg.allowed.includes(tool);
-                    return (
-                        <span key={tool} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            fontFamily: 'var(--mono)',
-                            fontSize: 12,
-                            padding: '3px 9px',
-                            borderRadius: 4,
-                            border: '0.5px solid #E5E7EB',
-                            background: '#fff',
-                        }}>
-                            <span style={{ color: allowed ? '#1D9E75' : '#E24B4A', fontSize: 12 }}>
-                                {allowed ? '✓' : '✗'}
-                            </span>
-                            {tool}
-                        </span>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-
-function DemoWidget() {
-    const [role, setRole] = useState<Role>('supervisor');
-
+function VideoSection() {
     return (
         <section style={{ padding: '0 24px 72px', maxWidth: 760, margin: '0 auto' }}>
             <div style={{
                 fontSize: 11,
-                textTransform: 'uppercase',
+                textTransform: 'uppercase' as const,
                 letterSpacing: '0.08em',
                 color: '#9CA3AF',
                 marginBottom: 10,
                 fontWeight: 500,
             }}>
-                live demo — switch roles to see what gets blocked
+                see it in action
             </div>
 
-            <div style={{ border: '0.5px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
-
-                {/* Top bar */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 16px',
-                    background: '#F9FAFB',
-                    borderBottom: '0.5px solid #E5E7EB',
-                }}>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                        {(['viewer', 'supervisor', 'admin'] as Role[]).map(r => (
-                            <button
-                                key={r}
-                                onClick={() => setRole(r)}
-                                style={{
-                                    padding: '4px 12px',
-                                    borderRadius: 5,
-                                    fontSize: 13,
-                                    fontFamily: 'var(--mono)',
-                                    cursor: 'pointer',
-                                    border: role === r ? '0.5px solid #E5E7EB' : '0.5px solid transparent',
-                                    background: role === r ? '#fff' : 'transparent',
-                                    color: role === r ? '#111827' : '#6B7280',
-                                    fontWeight: role === r ? 500 : 400,
-                                    transition: 'all 0.15s',
-                                    userSelect: 'none',
-                                }}
-                            >
-                                {r}
-                            </button>
-                        ))}
-                    </div>
-                    <a href="#" style={{
+            <div style={{
+                border: '0.5px solid #E5E7EB',
+                borderRadius: 10,
+                overflow: 'hidden',
+                background: '#F9FAFB',
+                aspectRatio: '16/9',
+                position: 'relative',
+            }}>
+                {VIDEO_EMBED_URL ? (
+                    <iframe
+                        src={VIDEO_EMBED_URL}
+                        style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title="perso demo"
+                    />
+                ) : (
+                    // Placeholder shown until VIDEO_EMBED_URL is set
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: 5,
-                        fontSize: 12.5,
-                        color: '#6B7280',
-                        textDecoration: 'none',
+                        justifyContent: 'center',
+                        gap: 14,
+                        color: '#9CA3AF',
                     }}>
-                        <IconFile />
-                        policy
-                    </a>
-                </div>
+                        <div style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: '50%',
+                            border: '0.5px solid #E5E7EB',
+                            background: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#D1D5DB',
+                        }}>
+                            <IconPlay />
+                        </div>
+                        <div style={{ fontSize: 13, color: '#9CA3AF' }}>
+                            demo video coming soon
+                        </div>
+                    </div>
+                )}
+            </div>
 
-                <ChatArea role={role} />
-                <PolicyStrip role={role} />
+            {/* Role/policy strip below video as static reference */}
+            <div style={{
+                marginTop: 12,
+                border: '0.5px solid #E5E7EB',
+                borderRadius: 8,
+                background: '#fff',
+                padding: '12px 16px',
+            }}>
+                <div style={{
+                    fontSize: 11,
+                    textTransform: 'uppercase' as const,
+                    letterSpacing: '0.07em',
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    marginBottom: 10,
+                }}>
+                    policy matrix — what each role can do
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto repeat(3, 1fr)', gap: '6px 0' }}>
+                    {/* Header */}
+                    <div />
+                    {(['viewer', 'supervisor', 'admin'] as Role[]).map(r => (
+                        <div key={r} style={{
+                            fontFamily: 'var(--mono)',
+                            fontSize: 11.5,
+                            color: '#6B7280',
+                            textAlign: 'center',
+                            paddingBottom: 6,
+                            borderBottom: '0.5px solid #E5E7EB',
+                        }}>
+                            {r}
+                        </div>
+                    ))}
+                    {/* Rows */}
+                    {ALL_TOOLS.map(tool => (
+                        <>
+                            <div key={`label-${tool}`} style={{
+                                fontFamily: 'var(--mono)',
+                                fontSize: 12,
+                                color: '#374151',
+                                padding: '5px 12px 5px 0',
+                                borderBottom: '0.5px solid #F3F4F6',
+                            }}>
+                                {tool}
+                            </div>
+                            {(['viewer', 'supervisor', 'admin'] as Role[]).map(r => {
+                                const allowed = ROLES[r].allowed.includes(tool);
+                                return (
+                                    <div key={`${tool}-${r}`} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderBottom: '0.5px solid #F3F4F6',
+                                        fontSize: 13,
+                                        color: allowed ? '#1D9E75' : '#E24B4A',
+                                    }}>
+                                        {allowed ? '✓' : '✗'}
+                                    </div>
+                                );
+                            })}
+                        </>
+                    ))}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11.5, color: '#9CA3AF' }}>
+                    Default action: <span style={{ fontFamily: 'var(--mono)' }}>Deny</span> — anything not explicitly allowed is rejected.
+                </div>
             </div>
         </section>
     );
 }
+
+// ─── Repos Section ────────────────────────────────────────────────────────────
+
+const REPOS = [
+    {
+        name: 'teknokeras/perso',
+        href: 'https://github.com/teknokeras/perso',
+        desc: 'The policy engine. Write rules in JSON, compile to WASM, enforce in any host.',
+        tags: ['rust', 'wasm', 'core'],
+        npm: null,
+    },
+    {
+        name: 'teknokeras/perso-sdk-node',
+        href: 'https://github.com/teknokeras/perso-sdk-node',
+        desc: 'Node.js SDK wrapping the WASM ABI. Pluggable audit transports, TypeScript-first.',
+        tags: ['typescript', 'node', 'sdk'],
+        npm: 'https://www.npmjs.com/package/@teknokeras/perso-sdk',
+    },
+    {
+        name: 'teknokeras/perso-demo',
+        href: 'https://github.com/teknokeras/perso-demo',
+        desc: 'Full-stack demo — React + Express + Groq. Shows perso intercepting real LLM tool calls.',
+        tags: ['react', 'express', 'groq'],
+        npm: null,
+    },
+];
+
+function ReposSection() {
+    return (
+        <section style={{
+            padding: '64px 24px',
+            borderTop: '0.5px solid #E5E7EB',
+        }}>
+            <div style={{ maxWidth: 760, margin: '0 auto' }}>
+                <div style={{
+                    fontSize: 13,
+                    textTransform: 'uppercase' as const,
+                    letterSpacing: '0.08em',
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    marginBottom: 28,
+                }}>
+                    repositories
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {REPOS.map(repo => (
+                        <a
+                            key={repo.name}
+                            href={repo.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                justifyContent: 'space-between',
+                                gap: 16,
+                                padding: '18px 20px',
+                                border: '0.5px solid #E5E7EB',
+                                borderRadius: 9,
+                                background: '#fff',
+                                textDecoration: 'none',
+                                transition: 'border-color 0.15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = '#A8DFC9')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                        >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    marginBottom: 6,
+                                }}>
+                                    <IconGitHub />
+                                    <span style={{
+                                        fontFamily: 'var(--mono)',
+                                        fontSize: 13.5,
+                                        fontWeight: 500,
+                                        color: '#111827',
+                                    }}>
+                                        {repo.name}
+                                    </span>
+                                    {repo.npm && (
+                                        <a
+                                            href={repo.npm}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                fontFamily: 'var(--mono)',
+                                                fontSize: 11,
+                                                color: '#6B7280',
+                                                padding: '2px 7px',
+                                                border: '0.5px solid #E5E7EB',
+                                                borderRadius: 4,
+                                                background: '#F9FAFB',
+                                                textDecoration: 'none',
+                                            }}
+                                        >
+                                            <IconNpm />
+                                            npm
+                                        </a>
+                                    )}
+                                </div>
+                                <p style={{ fontSize: 13.5, color: '#6B7280', lineHeight: 1.6, marginBottom: 10 }}>
+                                    {repo.desc}
+                                </p>
+                                <div style={{ display: 'flex', gap: 5 }}>
+                                    {repo.tags.map(tag => (
+                                        <span key={tag} style={{
+                                            fontFamily: 'var(--mono)',
+                                            fontSize: 11,
+                                            padding: '2px 7px',
+                                            borderRadius: 4,
+                                            background: 'rgba(0,0,0,0.04)',
+                                            color: '#6B7280',
+                                        }}>
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            <div style={{ color: '#D1D5DB', flexShrink: 0, paddingTop: 2 }}>
+                                <IconExternalLink />
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+// ─── Waitlist ─────────────────────────────────────────────────────────────────
 
 function WaitlistSection() {
     const [email, setEmail] = useState('');
@@ -401,7 +367,7 @@ function WaitlistSection() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    access_key: import.meta.env.VITE_WEB3FORMS_KEY,// ← paste your key
+                    access_key: import.meta.env.VITE_WEB3FORMS_KEY,
                     email,
                     subject: 'New perso waitlist signup',
                 }),
@@ -501,11 +467,8 @@ const primaryBtnStyle: React.CSSProperties = {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Landing() {
-    const demoRef = useRef<HTMLDivElement>(null);
-
     return (
         <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif', color: '#111827', background: '#fff', fontSize: 15, lineHeight: 1.6, WebkitFontSmoothing: 'antialiased' }}>
-            {/* Mono font CSS variable injected globally */}
             <style>{`
         :root {
           --mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
@@ -535,6 +498,7 @@ export default function Landing() {
                     perso
                 </a>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                    <a href="#repos" style={{ color: '#6B7280', fontSize: 14 }}>repos</a>
                     <a href="#" style={{ color: '#6B7280', fontSize: 14 }}>docs</a>
                     <a
                         href="https://github.com/teknokeras/perso"
@@ -588,9 +552,9 @@ export default function Landing() {
                     </p>
 
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <Link to="/demo">
-                            <button style={primaryBtnStyle}>try the demo</button>
-                        </Link>
+                        <a href="https://github.com/teknokeras/perso-demo" target="_blank" rel="noreferrer">
+                            <button style={primaryBtnStyle}>view demo repo</button>
+                        </a>
                         <button style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -611,10 +575,8 @@ export default function Landing() {
                 </div>
             </section>
 
-            {/* ── Demo widget ── */}
-            <div ref={demoRef}>
-                <DemoWidget />
-            </div>
+            {/* ── Video ── */}
+            <VideoSection />
 
             {/* ── How it works ── */}
             <section style={{
@@ -624,7 +586,7 @@ export default function Landing() {
                 borderBottom: '0.5px solid #E5E7EB',
             }}>
                 <div style={{ maxWidth: 760, margin: '0 auto' }}>
-                    <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9CA3AF', fontWeight: 500, marginBottom: 28 }}>
+                    <div style={{ fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: '#9CA3AF', fontWeight: 500, marginBottom: 28 }}>
                         how it works
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -665,6 +627,11 @@ export default function Landing() {
                 </div>
             </section>
 
+            {/* ── Repos ── */}
+            <div id="repos">
+                <ReposSection />
+            </div>
+
             {/* ── Waitlist ── */}
             <WaitlistSection />
 
@@ -679,7 +646,9 @@ export default function Landing() {
                 <span style={{ fontSize: 13, color: '#9CA3AF' }}>perso by teknokeras</span>
                 <div style={{ display: 'flex', gap: 20 }}>
                     {[
-                        { label: 'github', href: 'https://github.com/teknokeras/perso' },
+                        { label: 'perso', href: 'https://github.com/teknokeras/perso' },
+                        { label: 'perso-sdk-node', href: 'https://github.com/teknokeras/perso-sdk-node' },
+                        { label: 'perso-demo', href: 'https://github.com/teknokeras/perso-demo' },
                         { label: 'npm', href: 'https://www.npmjs.com/package/@teknokeras/perso-sdk' },
                         { label: 'docs', href: '#' },
                     ].map(link => (

@@ -10,13 +10,13 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: LandingPage,
+  component: DemoPage,
 });
 
 const demoRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/demo',
-  component: DemoPage,
+  path: '/landing',
+  component: LandingPage,
 });
 
 export const routeTree = rootRoute.addChildren([indexRoute, demoRoute]);

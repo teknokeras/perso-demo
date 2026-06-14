@@ -255,13 +255,16 @@ export default function DemoPage() {
           )}
         </main>
 
-        {/* ── Input ── */}
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSend={() => send(input)}
-          disabled={loading}
-        />
+        {/* ── Input panel ── */}
+        <div style={styles.inputPanel}>
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSend={() => send(input)}
+            disabled={loading}
+          />
+        </div>
+
       </div>
     </>
   );
@@ -283,8 +286,9 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '0 16px',
     height: '52px',
-    borderBottom: '0.5px solid var(--border)',
-    background: 'var(--bg-surface)',
+    borderBottom: '0.5px solid #E5E7EB',
+    // slightly deeper grey than before to visually ground the top bar
+    background: '#D1D5DB',
     flexShrink: 0,
     gap: '12px',
   },
@@ -343,6 +347,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
+    background: 'var(--bg-base)',
   },
   scrollArea: {
     flex: 1,
@@ -366,5 +371,10 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '720px',
     width: '100%',
     margin: '0 auto',
+  },
+  // wraps ChatInput — grey panel at the bottom, input field inside stays white
+  inputPanel: {
+    background: '#D1D5DB',
+    flexShrink: 0,
   },
 };
