@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { sendChat } from '../lib/api';
-import type { Role, ChatMessage as ApiChatMessage } from '../types/api';
-import RoleSelector from '../components/chat/RoleSelector';
-import PolicySidebar from '../components/chat/PolicySidebar';
-import StatusBanner from '../components/chat/StatusBanner';
-import ChatMessage, { type MessageData } from '../components/chat/ChatMessage';
-import TypingIndicator from '../components/chat/TypingIndicator';
-import EmptyState from '../components/chat/EmptyState';
-import ChatInput from '../components/chat/ChatInput';
+import { sendChat } from '../../lib/api';
+import type { Role, ChatMessage as ApiChatMessage } from '../../types/api';
+import StatusBanner from '../../components/chat/StatusBanner';
+import ChatMessage, { type MessageData } from '../../components/chat/ChatMessage';
+import TypingIndicator from '../../components/chat/TypingIndicator';
+import ChatInput from '../../components/chat/ChatInput';
 import { Link } from '@tanstack/react-router';
+import RoleSelector from '../../components/chat/RoleSelector';
+import PolicySidebar from '../../components/chat/PolicySidebar';
+import EmptyState from '../../components/chat/EmptyState';
 
 let idCounter = 0;
 const uid = () => String(++idCounter);
@@ -16,23 +16,29 @@ const uid = () => String(++idCounter);
 // ── Role-aware suggested prompts ──────────────────────────────────────────────
 
 const ROLE_PROMPTS: Record<Role, { text: string; willDeny?: boolean }[]> = {
-  viewer: [
-    { text: 'Read /etc/config.json' },
-    { text: 'Show me /var/log/app.log' },
-    { text: 'Try to delete /etc/config.json', willDeny: true },
-    { text: 'Try to create /tmp/test.txt', willDeny: true },
+  agent: [
+    { text: 'Look up customer C-1042' },
+    { text: 'Update the email for customer C-1042 to alice@example.com' },
+    { text: 'Process a $200 refund for order ORD-8821' },
+    { text: 'Try to process a $800 refund for order ORD-8821', willDeny: true },
+    { text: "Try to delete customer C-1042's record", willDeny: true },
+    { text: "Try to view customer C-1042's full SSN and card number", willDeny: true },
   ],
-  supervisor: [
-    { text: 'Read /etc/config.json' },
-    { text: 'Update /home/user/notes.txt with a meeting summary' },
-    { text: 'Try to delete /app/secrets.env', willDeny: true },
-    { text: 'Try to create /tmp/report.txt', willDeny: true },
+  manager: [
+    { text: 'Look up customer C-1042' },
+    { text: 'Process a $1,500 refund for order ORD-9910' },
+    { text: "Delete customer C-2038's record" },
+    { text: "Try to delete customer C-9001's record (owned by another manager)", willDeny: true },
+    { text: 'View full PII for customer C-1042 (I have MFA verified)' },
+    { text: 'Export the Q2 customer report', willDeny: true },
   ],
   admin: [
-    { text: 'Read /app/secrets.env' },
-    { text: 'Create /tmp/report.txt with some content' },
-    { text: 'Update /etc/config.json to enable debug mode' },
-    { text: 'Delete /home/user/notes.txt' },
+    { text: 'Look up customer C-1042' },
+    { text: 'Delete any customer record — C-9001' },
+    { text: 'View full PII for customer C-1042' },
+    { text: 'Export the Q2 customer report' },
+    { text: 'Run a bulk update to mark all inactive accounts' },
+    { text: 'Try to bulk update without MFA verified', willDeny: true },
   ],
 };
 
@@ -133,7 +139,7 @@ const qa: Record<string, React.CSSProperties> = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DemoPage() {
-  const [role, setRole] = useState<Role>('viewer');
+  const [role, setRole] = useState<Role>('agent');
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -287,7 +293,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 16px',
     height: '52px',
     borderBottom: '0.5px solid #E5E7EB',
-    // slightly deeper grey than before to visually ground the top bar
     background: '#D1D5DB',
     flexShrink: 0,
     gap: '12px',
@@ -372,7 +377,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     margin: '0 auto',
   },
-  // wraps ChatInput — grey panel at the bottom, input field inside stays white
   inputPanel: {
     background: '#D1D5DB',
     flexShrink: 0,

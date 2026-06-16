@@ -1,18 +1,28 @@
 // ── Roles ─────────────────────────────────────────────────────────────────────
 
-export type Role = 'viewer' | 'supervisor' | 'admin';
+export type Role = 'agent' | 'manager' | 'admin';
 
-export const ROLES: Role[] = ['viewer', 'supervisor', 'admin'];
+export const ROLES: Role[] = ['agent', 'manager', 'admin'];
 
 // ── Tool names ────────────────────────────────────────────────────────────────
 
-export type ToolName = 'read_file' | 'create_file' | 'update_file' | 'delete_file';
+export type ToolName =
+  | 'view_customer'
+  | 'update_customer'
+  | 'delete_customer'
+  | 'process_refund'
+  | 'access_pii'
+  | 'export_data'
+  | 'bulk_update';
 
 export const TOOL_NAMES: ToolName[] = [
-  'read_file',
-  'create_file',
-  'update_file',
-  'delete_file',
+  'view_customer',
+  'update_customer',
+  'delete_customer',
+  'process_refund',
+  'access_pii',
+  'export_data',
+  'bulk_update',
 ];
 
 // ── perso WASM response shapes ────────────────────────────────────────────────
@@ -47,31 +57,46 @@ export interface EvaluateRequestBody {
 export interface EvaluateResponseBody {
   decision: Decision;
   reason: string;
-  /** Echoed back so the frontend can display what was evaluated */
   toolName: ToolName;
   role: Role;
-  /** Result of executing the mock tool — only present when decision is Allow */
   result?: string;
 }
 
 // ── Mock tool argument shapes ─────────────────────────────────────────────────
 
-export interface ReadFileArgs {
-  path: string;
+export interface ViewCustomerArgs {
+  customer_id: string;
 }
 
-export interface CreateFileArgs {
-  path: string;
-  content?: string;
+export interface UpdateCustomerArgs {
+  customer_id: string;
+  field: string;
+  value: string;
 }
 
-export interface UpdateFileArgs {
-  path: string;
-  content: string;
+export interface DeleteCustomerArgs {
+  customer_id: string;
 }
 
-export interface DeleteFileArgs {
-  path: string;
+export interface ProcessRefundArgs {
+  order_id: string;
+  amount: number;
+  reason?: string;
+}
+
+export interface AccessPiiArgs {
+  customer_id: string;
+}
+
+export interface ExportDataArgs {
+  report_type: string;
+  date_range?: string;
+}
+
+export interface BulkUpdateArgs {
+  filter: string;
+  field: string;
+  value: string;
 }
 
 // ── /chat endpoint ────────────────────────────────────────────────────────────
@@ -81,26 +106,38 @@ export interface ChatMessage {
   content: string;
 }
 
-/** A perso enforcement trace attached to a chat turn */
 export interface PersoTrace {
   toolName: ToolName;
   args: Record<string, unknown>;
   role: Role;
   decision: Decision;
   reason: string;
-  /** Result of mock tool execution — only present when decision is Allow */
   result?: string;
 }
 
 export interface ChatRequestBody {
-  /** Full conversation history including the new user message at the end */
   messages: ChatMessage[];
   role: Role;
 }
 
 export interface ChatResponseBody {
-  /** Gemini's final natural-language reply */
   reply: string;
-  /** perso trace — present when Gemini attempted a tool call */
   trace?: PersoTrace;
+}
+
+// ── Mock CRM data ─────────────────────────────────────────────────────────────
+
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  plan: string;
+  status: 'active' | 'inactive' | 'suspended';
+  owner_id: string; // manager user_id who owns this record
+  created_at: string;
+  // PII — only returned by access_pii
+  ssn?: string;
+  card_last4?: string;
+  card_type?: string;
 }

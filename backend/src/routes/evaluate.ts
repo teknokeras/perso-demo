@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPerso, isPersoReady } from '../lib/persoInstance.js';
-import { executeMockTool } from '../lib/mockTools.js';
+import { executeMockTool, getResourceAttributes } from '../lib/mockTools.js';
 import type {
   EvaluateRequestBody,
   EvaluateResponseBody,
@@ -18,7 +18,7 @@ router.post(
     if (!isPersoReady()) {
       res.status(503).json({
         decision: 'Deny',
-        reason: 'Policy engine not loaded — drop perso.wasm into backend/src/wasm/ and restart',
+        reason: 'Policy engine not loaded — drop perso.wasm into backend/wasm/ and restart',
         toolName: req.body?.toolName ?? ('' as ToolName),
         role: req.body?.role ?? ('' as Role),
       });
@@ -26,7 +26,7 @@ router.post(
     }
 
     // ── Validate request body ───────────────────────────────────────────────
-    const { toolName, args = {}, role, agentAttributes = {}, resourceAttributes = {} } =
+    const { toolName, args = {}, role, agentAttributes = {}, resourceAttributes } =
       req.body ?? {};
 
     if (!toolName || !TOOL_NAMES.includes(toolName)) {
@@ -49,21 +49,20 @@ router.post(
       return;
     }
 
+    // ── Resolve resourceAttributes if not provided by caller ─────────────────
+    // The /evaluate endpoint is used directly by the frontend for raw checks.
+    // If resourceAttributes weren't passed in, resolve them from mock data
+    // (same logic as groq.ts) so the policy can apply FieldEquals conditions.
+    const resolvedResourceAttrs = resourceAttributes ?? getResourceAttributes(toolName, args);
+
     // ── Ask perso ───────────────────────────────────────────────────────────
-    // const evaluation = persoEvaluate(
-    //   toolName,
-    //   args,
-    //   role,
-    //   agentAttributes,
-    //   resourceAttributes,
-    // );
     const evaluation = await getPerso()!.evaluate({
       tool: toolName,
       args,
       role,
       agentAttributes,
-      resourceAttributes,
-    })
+      resourceAttributes: resolvedResourceAttrs,
+    });
 
     // ── Execute mock tool only if allowed ───────────────────────────────────
     let result: string | undefined;

@@ -9,7 +9,6 @@ import evaluateRouter from './routes/evaluate.js';
 import chatRouter from './routes/chat.js';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import waitlistRouter from './routes/waitlist.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -28,7 +27,6 @@ app.use(express.json());
 app.use('/health', healthRouter);
 app.use('/evaluate', evaluateRouter);
 app.use('/chat', chatRouter);
-app.use('/waitlist', waitlistRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req: Request, res: Response) => {

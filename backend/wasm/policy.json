@@ -1,48 +1,152 @@
 {
-  "version": "perso-1.0.0",
-  "default_action": "Deny",
-  "tools": [
-    "read_file",
-    "create_file",
-    "update_file",
-    "delete_file"
-  ],
-  "roles": [
-    "viewer",
-    "supervisor",
-    "admin"
-  ],
-  "rules": [
-    {
-      "tool_name": "read_file",
-      "roles": [
-        "viewer",
-        "supervisor",
+    "version": "perso-1.0.0",
+    "default_action": "Deny",
+    "tools": [
+        "view_customer",
+        "update_customer",
+        "delete_customer",
+        "export_data",
+        "process_refund",
+        "access_pii",
+        "bulk_update"
+    ],
+    "roles": [
+        "agent",
+        "manager",
         "admin"
-      ],
-      "condition": null
-    },
-    {
-      "tool_name": "update_file",
-      "roles": [
-        "supervisor",
-        "admin"
-      ],
-      "condition": null
-    },
-    {
-      "tool_name": "create_file",
-      "roles": [
-        "admin"
-      ],
-      "condition": null
-    },
-    {
-      "tool_name": "delete_file",
-      "roles": [
-        "admin"
-      ],
-      "condition": null
-    }
-  ]
+    ],
+    "rules": [
+        {
+            "tool_name": "view_customer",
+            "roles": [
+                "agent",
+                "manager",
+                "admin"
+            ],
+            "condition": null
+        },
+        {
+            "tool_name": "update_customer",
+            "roles": [
+                "agent",
+                "manager",
+                "admin"
+            ],
+            "condition": null
+        },
+        {
+            "tool_name": "delete_customer",
+            "roles": [
+                "manager",
+                "admin"
+            ],
+            "condition": {
+                "Any": [
+                    {
+                        "FieldEquals": {
+                            "source_a": "AgentAttributes",
+                            "field_a": "user_id",
+                            "source_b": "ResourceAttributes",
+                            "field_b": "owner_id"
+                        }
+                    },
+                    {
+                        "StringCheck": {
+                            "source": "AgentAttributes",
+                            "field": "role",
+                            "op": "In",
+                            "value": [
+                                "admin"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "tool_name": "process_refund",
+            "roles": [
+                "agent"
+            ],
+            "condition": {
+                "NumericCheck": {
+                    "source": "Arguments",
+                    "field": "amount",
+                    "op": "Lte",
+                    "value": 500.0
+                }
+            }
+        },
+        {
+            "tool_name": "process_refund",
+            "roles": [
+                "manager",
+                "admin"
+            ],
+            "condition": {
+                "NumericCheck": {
+                    "source": "Arguments",
+                    "field": "amount",
+                    "op": "Lte",
+                    "value": 2000.0
+                }
+            }
+        },
+        {
+            "tool_name": "access_pii",
+            "roles": [
+                "manager",
+                "admin"
+            ],
+            "condition": {
+                "FieldPresent": {
+                    "source": "AgentAttributes",
+                    "field": "mfa_verified"
+                }
+            }
+        },
+        {
+            "tool_name": "export_data",
+            "roles": [
+                "manager",
+                "admin"
+            ],
+            "condition": {
+                "StringCheck": {
+                    "source": "AgentAttributes",
+                    "field": "env",
+                    "op": "In",
+                    "value": [
+                        "production"
+                    ]
+                }
+            }
+        },
+        {
+            "tool_name": "bulk_update",
+            "roles": [
+                "admin"
+            ],
+            "condition": {
+                "All": [
+                    {
+                        "StringCheck": {
+                            "source": "AgentAttributes",
+                            "field": "env",
+                            "op": "In",
+                            "value": [
+                                "production"
+                            ]
+                        }
+                    },
+                    {
+                        "FieldPresent": {
+                            "source": "AgentAttributes",
+                            "field": "mfa_verified"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
 }

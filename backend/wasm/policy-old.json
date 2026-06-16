@@ -1,0 +1,48 @@
+{
+  "version": "perso-1.0.0",
+  "default_action": "Deny",
+  "tools": [
+    "read_file",
+    "create_file",
+    "update_file",
+    "delete_file"
+  ],
+  "roles": [
+    "viewer",
+    "supervisor",
+    "admin"
+  ],
+  "rules": [
+    {
+      "tool_name": "read_file",
+      "roles": [
+        "viewer",
+        "supervisor",
+        "admin"
+      ],
+      "condition": null
+    },
+    {
+      "tool_name": "update_file",
+      "roles": [
+        "supervisor",
+        "admin"
+      ],
+      "condition": null
+    },
+    {
+      "tool_name": "create_file",
+      "roles": [
+        "admin"
+      ],
+      "condition": null
+    },
+    {
+      "tool_name": "delete_file",
+      "roles": [
+        "admin"
+      ],
+      "condition": null
+    }
+  ]
+}

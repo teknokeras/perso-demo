@@ -13,8 +13,15 @@ export interface HealthResponse {
 
 // ── Shared domain types ───────────────────────────────────────────────────────
 
-export type Role     = 'viewer' | 'supervisor' | 'admin';
-export type ToolName = 'read_file' | 'create_file' | 'update_file' | 'delete_file';
+export type Role = 'agent' | 'manager' | 'admin';
+export type ToolName =
+  | 'view_customer'
+  | 'update_customer'
+  | 'delete_customer'
+  | 'process_refund'
+  | 'access_pii'
+  | 'export_data'
+  | 'bulk_update';
 export type Decision = 'Allow' | 'Deny';
 
 // ── /evaluate ─────────────────────────────────────────────────────────────────
