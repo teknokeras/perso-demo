@@ -2,7 +2,7 @@
 
 Interactive demo of [perso](https://github.com/teknokeras/perso) — a WebAssembly policy enforcement engine for MCP tool calls.
 
-The LLM (Groq) calls tools. perso intercepts every tool call intent before execution and returns Allow or Deny based on the caller's role. The UI shows the decision inline — green for allow, red for deny — alongside the reason from the policy engine.
+The LLM (Groq) calls tools against a mock CRM. perso intercepts every tool call intent before execution and returns Allow or Deny based on the caller's role and runtime attributes. The UI shows the decision inline — green for allow, red for deny — alongside the reason from the policy engine.
 
 ---
 
@@ -30,9 +30,10 @@ const perso = await Perso.load('path/to/perso.wasm', {
 })
 
 const decision = await perso.evaluate({
-  tool: 'delete_file',
-  args: { path: '/etc/passwd' },
-  role: 'viewer',
+  tool: 'process_refund',
+  args: { order_id: 'ORD-8821', amount: 800 },
+  role: 'agent',
+  agentAttributes: { user_id: 'agt-099', env: 'production' },
 })
 // { decision: 'Deny', reason: '...' }
 ```
@@ -45,11 +46,8 @@ The SDK is loaded once at startup in `backend/src/index.ts` and the instance is 
 
 ### Step 1 — Prerequisites
 
-Make sure you have the following installed:
-
 - **Node.js 18+** — [nodejs.org](https://nodejs.org)
-- **pnpm 11+** — install with `npm i -g pnpm`
-- **Rust + wasm32 target** — needed to build `perso.wasm` (see Step 3)
+- **pnpm 11+** — `npm i -g pnpm`
 - **Groq API key** — get one free at [console.groq.com/keys](https://console.groq.com/keys)
 
 ### Step 2 — Clone and install
@@ -62,23 +60,20 @@ pnpm install
 
 ### Step 3 — Build perso.wasm
 
-This repo already contain pero.wasm and policy.json. So this step is for those who wants to generate their own.
-If you want to quick run you can skip this step.
-Clone the perso engine repo and compile the WASM binary:
+The repo already includes a compiled `perso.wasm` and `policy.json`. Skip this step for a quick run.
+
+To build your own:
 
 ```bash
 git clone https://github.com/teknokeras/perso.git
 cd perso
 
-# Add the WASM compilation target (one-time setup)
 rustup target add wasm32-unknown-unknown
 
-# Build the WASM binary
 cargo run -p policy-compiler -- build \
   --policy policies/example.json \
   --output dist/policy_runtime.wasm
 
-# Copy the binary and policy into perso-demo
 cp dist/policy_runtime.wasm /path/to/perso-demo/backend/wasm/perso.wasm
 cp policies/example.json /path/to/perso-demo/backend/wasm/policy.json
 ```
@@ -89,14 +84,12 @@ cp policies/example.json /path/to/perso-demo/backend/wasm/policy.json
 cp backend/.env.example backend/.env
 ```
 
-Open `backend/.env` and fill in the values:
+Open `backend/.env` and fill in:
 
 ```env
-# Server
 PORT=3001
 FRONTEND_URL=http://localhost:5173
 
-# Groq — get a free key at https://console.groq.com/keys
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=llama-3.1-8b-instant
 ```
@@ -114,28 +107,69 @@ GROQ_MODEL=llama-3.1-8b-instant
 pnpm dev
 ```
 
-This starts both services concurrently from the root directory:
+Starts both services concurrently:
 - Frontend → http://localhost:5173
 - Backend → http://localhost:3001
 
-Open http://localhost:5173 in your browser. The status banner at the top will turn green once both the policy engine (WASM) and Groq are ready.
+The status banner at the top turns green once the WASM engine and Groq are ready.
 
 ---
 
-## Policy
+## Scenario — CRM access control
 
-The demo uses four mock tools and three roles. No real filesystem — all tools return fake responses.
+The demo simulates a B2B SaaS CRM with three roles and seven tools. No real database — all tools return mock responses.
 
-| Tool | viewer | supervisor | admin |
-|---|---|---|---|
-| `read_file` | ✅ | ✅ | ✅ |
-| `update_file` | ❌ | ✅ | ✅ |
-| `create_file` | ❌ | ❌ | ✅ |
-| `delete_file` | ❌ | ❌ | ✅ |
+### Roles
+
+| Role | Description |
+|---|---|
+| `agent` | Front-line support. View and update customers, process refunds up to $500. |
+| `manager` | Team lead. Delete own records, access PII (with MFA), export data, refunds up to $2,000. |
+| `admin` | Full access. All operations including bulk updates (requires MFA + production env). |
+
+### Tools and permissions
+
+| Tool | agent | manager | admin | Condition |
+|---|---|---|---|---|
+| `view_customer` | ✅ | ✅ | ✅ | — |
+| `update_customer` | ✅ | ✅ | ✅ | — |
+| `delete_customer` | ❌ | ✅ | ✅ | manager: `user_id == owner_id` only |
+| `process_refund` | ✅ | ✅ | ✅ | agent: `amount ≤ $500` · manager/admin: `amount ≤ $2,000` |
+| `access_pii` | ❌ | ✅ | ✅ | `mfa_verified` must be present |
+| `export_data` | ❌ | ✅ | ✅ | `env == production` only |
+| `bulk_update` | ❌ | ❌ | ✅ | `env == production` + `mfa_verified` |
 
 Default action: **Deny**. Anything not explicitly allowed is rejected.
 
-Click **policy** in the top-right to see the active rules for the current role.
+### Mock data
+
+**Customers**
+
+| ID | Name | Plan | Owner |
+|---|---|---|---|
+| `C-1042` | Alice Hartwell | Pro | `mgr-001` (demo manager) |
+| `C-2038` | Daniel Osei | Starter | `mgr-001` (demo manager) |
+| `C-9001` | Priya Menon | Enterprise | `mgr-002` (different manager) |
+
+**Orders**
+
+| ID | Customer | Amount |
+|---|---|---|
+| `ORD-8821` | C-1042 | $249.99 |
+| `ORD-9910` | C-2038 | $1,899.00 |
+| `ORD-5533` | C-9001 | $89.50 |
+
+### Condition types demonstrated
+
+Each deny in this demo fires a different perso condition type:
+
+| Scenario | Condition type |
+|---|---|
+| Agent tries to refund $800 | `NumericCheck` — `Arguments.amount > 500` |
+| Manager tries to delete C-9001 | `FieldEquals` — `AgentAttributes.user_id ≠ ResourceAttributes.owner_id` |
+| Manager tries to access PII without MFA | `FieldPresent` — `AgentAttributes.mfa_verified` missing |
+| Manager tries to export from staging | `StringCheck` — `AgentAttributes.env ≠ production` |
+| Admin tries to bulk update without MFA | `All` — both `env` and `mfa_verified` must pass |
 
 ---
 
@@ -143,54 +177,80 @@ Click **policy** in the top-right to see the active rules for the current role.
 
 Walk through these prompts in order to show the full allow/deny contrast.
 
-### Scene 1 — viewer role (read only)
+### Scene 1 — agent role (view + update + limited refund)
 
-Set role to **viewer**.
-
-```
-Read /etc/config.json
-```
-→ perso **allows** `read_file`. Groq returns the file contents.
+Set role to **agent**.
 
 ```
-Try to delete /etc/config.json
+Look up customer C-1042
 ```
-→ Groq calls `delete_file`. perso **denies** — no rule matches `delete_file` for `viewer`. Default action kicks in.
-
-### Scene 2 — supervisor role (read + update)
-
-Switch role to **supervisor** (conversation resets).
+→ perso **allows** `view_customer`. Returns Alice Hartwell's record.
 
 ```
-Update /home/user/notes.txt with today's standup summary
+Process a $200 refund for order ORD-8821
 ```
-→ perso **allows** `update_file`. Groq writes the content and confirms.
+→ perso **allows** `process_refund`. Amount is within the $500 agent cap.
 
 ```
-Create a new file at /tmp/report.txt
+Try to process a $800 refund for order ORD-8821
 ```
-→ Groq calls `create_file`. perso **denies** — supervisors cannot create files.
+→ perso **denies** — `NumericCheck` fails. $800 exceeds the $500 agent limit.
+
+```
+Try to delete customer C-1042's record
+```
+→ perso **denies** — `delete_customer` is not in the agent ruleset. Default action kicks in.
+
+### Scene 2 — manager role (own records + PII + export)
+
+Switch role to **manager** (conversation resets).
+
+```
+Delete customer C-2038's record
+```
+→ perso **allows** `delete_customer`. C-2038 is owned by `mgr-001` — `FieldEquals` passes.
+
+```
+Try to delete customer C-9001's record
+```
+→ perso **denies** — C-9001 is owned by `mgr-002`. `FieldEquals` fails: `user_id ≠ owner_id`.
+
+```
+View full PII for customer C-1042 (I have MFA verified)
+```
+→ perso **allows** `access_pii`. MFA claim detected in message — `mfa_verified` attribute set.
+
+```
+Export the Q2 customer report
+```
+→ perso **denies** — `StringCheck` on `env` fails. Demo is in staging env for this role.
 
 ### Scene 3 — admin role (full access)
 
 Switch role to **admin**.
 
 ```
-Delete /home/user/notes.txt
+Delete any customer record — C-9001
 ```
-→ perso **allows** `delete_file`. No restrictions for admin.
+→ perso **allows** `delete_customer`. Admin role satisfies the `StringCheck` fallback in the `Any` condition.
 
 ```
-Create /tmp/audit.log and write a line saying "demo complete"
+Run a bulk update to mark all inactive accounts
 ```
-→ perso **allows** `create_file`. Full pipeline: LLM intent → perso allow → mock tool executes → Groq replies.
+→ perso **allows** `bulk_update`. Both `env = production` and `mfa_verified` are set for admin.
+
+```
+Try to bulk update without MFA verified
+```
+→ perso **denies** — `All` condition fails. `mfa_verified` attribute is absent.
 
 ### What to point at during the demo
 
 - The **inline trace** below each assistant message — click to expand the full perso decision (tool name, role, decision, reason, result).
-- The **policy sidebar** (top-right "policy" button) — shows which tools are allowed/denied for the active role, and a filtered excerpt of `policy.json`.
-- The **status banner** — shows live readiness of the WASM engine and Groq. Useful to explain the architecture.
-- **Switching roles** — resets the conversation, updates the suggested prompts, and immediately changes what perso will allow.
+- The **policy sidebar** (`⚖ policy` button, top-right) — shows which tools are allowed/denied for the active role and the conditions that apply.
+- The **raw JSON panel** (`{ }` button, top-right) — shows the full `policy.json` with syntax highlighting. Useful for technical audiences.
+- The **status banner** — shows live readiness of the WASM engine and Groq.
+- **Switching roles** — resets the conversation, updates suggested prompts, and immediately changes what perso will allow.
 
 ---
 
@@ -202,27 +262,27 @@ perso-demo/
 │   ├── src/
 │   │   ├── lib/
 │   │   │   ├── persoInstance.ts  ← perso-sdk singleton (shared across routes)
-│   │   │   ├── groq.ts           ← Groq client + two-step function calling flow
-│   │   │   ├── groqTools.ts      ← Groq tool definitions for 4 mock tools
-│   │   │   ├── mockTools.ts      ← fake filesystem implementations
+│   │   │   ├── groq.ts           ← Groq client + two-step function calling flow + agentAttributes builder
+│   │   │   ├── groqTools.ts      ← Groq tool definitions for 7 CRM tools
+│   │   │   ├── mockTools.ts      ← fake CRM implementations + resource attribute resolver
 │   │   │   └── types.ts          ← shared domain types
 │   │   ├── routes/
 │   │   │   ├── health.ts         ← GET /health (wasm + llm feature flags)
 │   │   │   ├── evaluate.ts       ← POST /evaluate (raw perso evaluation)
 │   │   │   └── chat.ts           ← POST /chat (Groq + perso interception)
 │   │   └── index.ts
-│   ├── wasm/                     ← engine binary and policy (not in repo)
+│   ├── wasm/
 │   │   ├── policy.json           ← perso policy definition
-│   │   └── perso.wasm            ← compiled engine binary (see Step 3)
-│   ├── .env.example              ← copy to .env and fill in values
+│   │   └── perso.wasm            ← compiled engine binary
+│   ├── .env.example
 │   └── .env                      ← gitignored — never commit this
 ├── frontend/
 │   ├── src/
 │   │   ├── components/chat/
 │   │   │   ├── ChatInput.tsx
 │   │   │   ├── ChatMessage.tsx
-│   │   │   ├── EmptyState.tsx
-│   │   │   ├── PolicySidebar.tsx
+│   │   │   ├── EmptyState.tsx       ← role-aware prompt cards
+│   │   │   ├── PolicySidebar.tsx    ← human-readable policy + raw JSON drawer
 │   │   │   ├── RoleSelector.tsx
 │   │   │   ├── StatusBanner.tsx
 │   │   │   └── TypingIndicator.tsx
