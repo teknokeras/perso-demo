@@ -13,17 +13,17 @@ The LLM (Groq) calls tools against a mock CRM. perso intercepts every tool call 
 | Frontend | React 18 + Vite + TanStack Router — TypeScript |
 | Backend | Node.js + Express — TypeScript (`tsx` dev) |
 | LLM | Groq (free tier) — `llama-3.1-8b-instant` via `groq-sdk` |
-| Policy engine | [`perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm` |
+| Policy engine | [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm` |
 | Package manager | pnpm 11 workspaces |
 
 ---
 
-## How perso-sdk is used
+## How @teknokeras/perso-sdk is used
 
-The backend uses [`perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — the official Node.js SDK for the perso engine. The SDK wraps the raw WASM ABI (`alloc`/`dealloc`/`init`/`evaluate`) behind a clean async API and handles audit logging via pluggable transports.
+The backend uses [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — the official Node.js SDK for the perso engine. The SDK wraps the raw WASM ABI (`alloc`/`dealloc`/`init`/`evaluate`) behind a clean async API and handles audit logging via pluggable transports.
 
 ```typescript
-import { Perso } from 'perso-sdk'
+import { Perso } from '@teknokeras/perso-sdk'
 
 const perso = await Perso.load('path/to/perso.wasm', {
   policy: 'path/to/policy.json',
@@ -39,6 +39,8 @@ const decision = await perso.evaluate({
 ```
 
 The SDK is loaded once at startup in `backend/src/index.ts` and the instance is shared across routes via `backend/src/lib/persoInstance.ts`. Every tool call intent from the LLM passes through `perso.evaluate()` before any tool is executed.
+
+> **Note:** the SDK ships with no audit transport configured by default — events are silently dropped unless one is explicitly passed to `Perso.load()`. This demo does not wire up a transport, so it does not emit audit events; see [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node#transports) for `consoleTransport()`, `httpTransport()`, and `fileTransport()` if you want to see them.
 
 ---
 
