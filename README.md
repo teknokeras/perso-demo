@@ -1,8 +1,10 @@
 # perso-demo
 
-Interactive demo of [perso](https://github.com/teknokeras/perso) — a WebAssembly policy enforcement engine for MCP tool calls.
+Interactive demo of [perso](https://github.com/teknokeras/perso) — an embedded WebAssembly ABAC policy engine for MCP tool calls, with no control plane and no network call in the decision path.
 
-The LLM (Groq) calls tools against a mock CRM. perso intercepts every tool call intent before execution and returns Allow or Deny based on the caller's role and runtime attributes. The UI shows the decision inline — green for allow, red for deny — alongside the reason from the policy engine.
+The LLM (Groq) calls tools against a mock CRM. perso intercepts every tool call intent **in-process** before execution and returns Allow or Deny based on the caller's role and runtime attributes — no policy service to reach, no account to authenticate against beyond Groq's own API. The UI shows the decision inline — green for allow, red for deny — alongside the reason from the policy engine.
+
+This demo exists to prove a specific claim: **you can clone this, add one API key, and have policy-gated tool calls running in your own process within minutes — nothing else to stand up.**
 
 ---
 
@@ -13,14 +15,16 @@ The LLM (Groq) calls tools against a mock CRM. perso intercepts every tool call 
 | Frontend | React 18 + Vite + TanStack Router — TypeScript |
 | Backend | Node.js + Express — TypeScript (`tsx` dev) |
 | LLM | Groq (free tier) — `llama-3.1-8b-instant` via `groq-sdk` |
-| Policy engine | [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm` |
+| Policy engine | [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm`, loaded in-process |
 | Package manager | pnpm 11 workspaces |
+
+Note the only external network dependency in this entire stack is the Groq LLM call itself — the authorization decision never leaves the backend process. There is no Cerbos Hub, no Permit.io PDP, no hosted policy service anywhere in this picture.
 
 ---
 
 ## How @teknokeras/perso-sdk is used
 
-The backend uses [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — the official Node.js SDK for the perso engine. The SDK wraps the raw WASM ABI (`alloc`/`dealloc`/`init`/`evaluate`) behind a clean async API and handles audit logging via pluggable transports.
+The backend uses [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — the official Node.js SDK for the perso engine. The SDK wraps the raw WASM ABI (`alloc`/`dealloc`/`init`/`evaluate`) behind a clean async API and handles audit logging via pluggable transports. The `.wasm` binary and policy JSON are loaded directly into the backend's own memory — there's no separate service or sidecar process involved.
 
 ```typescript
 import { Perso } from '@teknokeras/perso-sdk'
@@ -38,13 +42,15 @@ const decision = await perso.evaluate({
 // { decision: 'Deny', reason: '...' }
 ```
 
-The SDK is loaded once at startup in `backend/src/index.ts` and the instance is shared across routes via `backend/src/lib/persoInstance.ts`. Every tool call intent from the LLM passes through `perso.evaluate()` before any tool is executed.
+The SDK is loaded once at startup in `backend/src/index.ts` and the instance is shared across routes via `backend/src/lib/persoInstance.ts`. Every tool call intent from the LLM passes through `perso.evaluate()` before any tool is executed — a function call within the same process, not an HTTP request to anything.
 
-> **Note:** the SDK ships with no audit transport configured by default — events are silently dropped unless one is explicitly passed to `Perso.load()`. This demo does not wire up a transport, so it does not emit audit events; see [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node#transports) for `consoleTransport()`, `httpTransport()`, and `fileTransport()` if you want to see them.
+> **Note:** the SDK ships with no audit transport configured by default — events are silently dropped unless one is explicitly passed to `Perso.load()`. This demo does not wire up a transport, so it does not emit audit events; see [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node#transports) for `consoleTransport()`, `httpTransport()`, and `fileTransport()` if you want to see them. perso doesn't ship a built-in audit platform by design — wiring a transport is left to the host, same as everything else here.
 
 ---
 
 ## Running the demo
+
+This is the entire setup. There is no infrastructure step — no Docker Compose, no database, no policy service to deploy. If you've used `npm`/`pnpm` before, steps 1–5 are the whole thing.
 
 ### Step 1 — Prerequisites
 
@@ -102,6 +108,8 @@ GROQ_MODEL=llama-3.1-8b-instant
 | `FRONTEND_URL` | no | CORS origin (default: `http://localhost:5173`) |
 | `GROQ_API_KEY` | **yes** | Your Groq API key |
 | `GROQ_MODEL` | **yes** | Groq model ID — `llama-3.1-8b-instant` recommended |
+
+`GROQ_API_KEY` is the only credential this whole demo needs. There's no second key, no policy-service token, no separate auth setup for perso itself.
 
 ### Step 5 — Run
 
@@ -172,6 +180,8 @@ Each deny in this demo fires a different perso condition type:
 | Manager tries to access PII without MFA | `FieldPresent` — `AgentAttributes.mfa_verified` missing |
 | Manager tries to export from staging | `StringCheck` — `AgentAttributes.env ≠ production` |
 | Admin tries to bulk update without MFA | `All` — both `env` and `mfa_verified` must pass |
+
+Every one of these decisions is made by a function call inside the backend process — none of them involve a request to an external authorization service.
 
 ---
 
@@ -253,6 +263,7 @@ Try to bulk update without MFA verified
 - The **raw JSON panel** (`{ }` button, top-right) — shows the full `policy.json` with syntax highlighting. Useful for technical audiences.
 - The **status banner** — shows live readiness of the WASM engine and Groq.
 - **Switching roles** — resets the conversation, updates suggested prompts, and immediately changes what perso will allow.
+- If anyone asks "what else do I need to run this in production" — the honest answer for the authorization layer specifically is: nothing extra. You'd add your own audit transport, real role extraction from your auth system, and a real backend for the CRM tools. The policy engine itself doesn't add infrastructure.
 
 ---
 
@@ -314,5 +325,5 @@ pnpm typecheck        # tsc --noEmit both packages
 
 | Repo | Description |
 |---|---|
-| [teknokeras/perso](https://github.com/teknokeras/perso) | Rust/WASM policy engine |
+| [teknokeras/perso](https://github.com/teknokeras/perso) | Rust/WASM ABAC policy engine — embedded, no control plane |
 | [teknokeras/perso-sdk-node](https://github.com/teknokeras/perso-sdk-node) | Node.js SDK used by this demo |
