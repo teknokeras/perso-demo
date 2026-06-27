@@ -2,7 +2,7 @@
 perso-sdk singleton, shared across routes — mirrors
 backend/src/lib/persoInstance.ts in the Node backend.
 
-Loaded once at startup (see app/main.py's lifespan handler).
+Loaded once at startup via the lifespan handler in app/main.py.
 """
 
 from __future__ import annotations
@@ -11,8 +11,9 @@ from pathlib import Path
 
 from perso_sdk import AuditConfig, Perso, console_transport
 
-WASM_PATH = Path(__file__).resolve().parent.parent / "backend" / "wasm" / "perso.wasm"
-POLICY_PATH = Path(__file__).resolve().parent.parent / "backend" / "wasm" / "policy.json"
+# backend/wasm/ is shared between the Node and Python backends
+WASM_PATH = Path(__file__).resolve().parent.parent.parent.parent / "backend" / "wasm" / "perso.wasm"
+POLICY_PATH = Path(__file__).resolve().parent.parent.parent.parent / "backend" / "wasm" / "policy.json"
 
 _perso_instance: Perso | None = None
 

@@ -155,11 +155,14 @@ GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=llama-3.1-8b-instant
 ```
 
-**Run the backend:**
+**Run the backend** (from inside `backend-python/`):
 
 ```bash
-uvicorn main:app --reload --port 3001
+cd backend-python
+uvicorn app.main:app --reload --port 3001
 ```
+
+> The `cd backend-python` is required — uvicorn must be run from that directory so it can resolve `app.main` as a package. Running it from the repo root or from inside `app/` will fail.
 
 **Run the frontend** (in a separate terminal, from the repo root):
 
@@ -342,12 +345,16 @@ perso-demo/
 │   ├── .env.example
 │   └── .env                          ← gitignored
 ├── backend-python/                   ← Python backend (Option B)
-│   ├── main.py                       ← FastAPI app + routes
-│   ├── groq_client.py                ← Groq client + two-step function calling flow
-│   ├── groq_tools.py                 ← Groq tool definitions for 7 CRM tools
-│   ├── mock_tools.py                 ← fake CRM implementations + resource attribute resolver
-│   ├── models.py                     ← shared domain types (Pydantic)
-│   ├── perso_instance.py             ← perso-sdk singleton
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                   ← FastAPI app + routes
+│   │   └── lib/
+│   │       ├── __init__.py
+│   │       ├── groq_client.py        ← Groq client + two-step function calling flow
+│   │       ├── groq_tools.py         ← Groq tool definitions for 7 CRM tools
+│   │       ├── mock_tools.py         ← fake CRM implementations + resource attribute resolver
+│   │       ├── models.py             ← shared domain types (Pydantic)
+│   │       └── perso_instance.py     ← perso-sdk singleton
 │   ├── requirements.txt
 │   └── .env                          ← gitignored
 ├── frontend/                         ← shared UI (works with either backend)

@@ -26,10 +26,10 @@ from typing import Any
 
 from groq import Groq
 
-from groq_tools import GROQ_TOOLS
-from mock_tools import execute_tool, resolve_resource_attributes
-from models import ChatRequest, PersoTrace
-from perso_instance import get_perso
+from .groq_tools import GROQ_TOOLS
+from .mock_tools import execute_tool, resolve_resource_attributes
+from .models import ChatRequest, PersoTrace
+from .perso_instance import get_perso
 
 SYSTEM_PROMPT = """You are a support assistant for a B2B CRM. You can look up customers, \
 update records, process refunds, and perform admin operations using the available tools. \

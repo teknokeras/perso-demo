@@ -15,10 +15,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from groq_client import run_chat_turn
-from mock_tools import execute_tool, resolve_resource_attributes
-from models import ChatRequest, ChatResponse, EvaluateRequest, EvaluateResponseBody, HealthFeatures, HealthResponse
-from perso_instance import init_perso, is_perso_ready, get_perso
+from .lib.groq_client import run_chat_turn
+from .lib.mock_tools import execute_tool, resolve_resource_attributes
+from .lib.models import (
+    ChatRequest,
+    ChatResponse,
+    EvaluateRequest,
+    EvaluateResponseBody,
+    HealthFeatures,
+    HealthResponse,
+)
+from .lib.perso_instance import get_perso, init_perso, is_perso_ready
 
 
 @asynccontextmanager
@@ -112,10 +119,13 @@ def chat(body: ChatRequest) -> ChatResponse:
 
 @app.exception_handler(404)
 async def not_found(request, _exc):
-    return JSONResponse(status_code=404, content={"error": f"Route {request.method} {request.url.path} not found"})
+    return JSONResponse(
+        status_code=404,
+        content={"error": f"Route {request.method} {request.url.path} not found"},
+    )
 
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
