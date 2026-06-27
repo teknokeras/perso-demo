@@ -13,12 +13,14 @@ This demo exists to prove a specific claim: **you can clone this, add one API ke
 | Layer | Tech |
 |---|---|
 | Frontend | React 18 + Vite + TanStack Router — TypeScript |
-| Backend | Node.js + Express — TypeScript (`tsx` dev) |
+| Backend (Node) | Node.js + Express — TypeScript (`tsx` dev) |
+| Backend (Python) | Python 3.10+ + FastAPI + uvicorn |
 | LLM | Groq (free tier) — `llama-3.1-8b-instant` via `groq-sdk` |
-| Policy engine | [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm`, loaded in-process |
-| Package manager | pnpm 11 workspaces |
+| Policy engine (Node) | [`@teknokeras/perso-sdk`](https://github.com/teknokeras/perso-sdk-node) — Node.js SDK wrapping `perso.wasm`, loaded in-process |
+| Policy engine (Python) | [`perso-sdk`](https://github.com/teknokeras/perso-sdk-python) — Python SDK wrapping `perso.wasm`, loaded in-process |
+| Package manager | pnpm 11 workspaces (Node) · pip (Python) |
 
-Note the only external network dependency in this entire stack is the Groq LLM call itself — the authorization decision never leaves the backend process. There is no Cerbos Hub, no Permit.io PDP, no hosted policy service anywhere in this picture.
+The frontend is shared — it talks to whichever backend you run on `:3001`. The only external network dependency in either stack is the Groq LLM call itself — the authorization decision never leaves the backend process.
 
 ---
 
@@ -50,25 +52,22 @@ The SDK is loaded once at startup in `backend/src/index.ts` and the instance is 
 
 ## Running the demo
 
-This is the entire setup. There is no infrastructure step — no Docker Compose, no database, no policy service to deploy. If you've used `npm`/`pnpm` before, steps 1–5 are the whole thing.
+There is no infrastructure step — no Docker Compose, no database, no policy service to deploy. Pick the backend you want to run (Node or Python) and follow that path. The frontend is the same either way.
 
-### Step 1 — Prerequisites
-
-- **Node.js 18+** — [nodejs.org](https://nodejs.org)
-- **pnpm 11+** — `npm i -g pnpm`
-- **Groq API key** — get one free at [console.groq.com/keys](https://console.groq.com/keys)
-
-### Step 2 — Clone and install
+### Step 1 — Clone the repo
 
 ```bash
 git clone https://github.com/teknokeras/perso-demo.git
 cd perso-demo
-pnpm install
 ```
 
-### Step 3 — Build perso.wasm
+### Step 2 — Get a Groq API key
 
-The repo already includes a compiled `perso.wasm` and `policy.json`. Skip this step for a quick run.
+Get one free at [console.groq.com/keys](https://console.groq.com/keys). This is the only credential the demo needs.
+
+### Step 3 — Build perso.wasm (optional)
+
+The repo already includes a compiled `perso.wasm` and `policy.json` in `backend/wasm/`. Skip this step for a quick run.
 
 To build your own:
 
@@ -86,7 +85,19 @@ cp dist/policy_runtime.wasm /path/to/perso-demo/backend/wasm/perso.wasm
 cp policies/example.json /path/to/perso-demo/backend/wasm/policy.json
 ```
 
-### Step 4 — Configure environment variables
+---
+
+### Option A — Node.js backend
+
+**Prerequisites:** Node.js 18+, pnpm 11+ (`npm i -g pnpm`)
+
+**Install:**
+
+```bash
+pnpm install
+```
+
+**Configure:**
 
 ```bash
 cp backend/.env.example backend/.env
@@ -97,21 +108,11 @@ Open `backend/.env` and fill in:
 ```env
 PORT=3001
 FRONTEND_URL=http://localhost:5173
-
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=llama-3.1-8b-instant
 ```
 
-| Variable | Required | Description |
-|---|---|---|
-| `PORT` | no | Backend port (default: `3001`) |
-| `FRONTEND_URL` | no | CORS origin (default: `http://localhost:5173`) |
-| `GROQ_API_KEY` | **yes** | Your Groq API key |
-| `GROQ_MODEL` | **yes** | Groq model ID — `llama-3.1-8b-instant` recommended |
-
-`GROQ_API_KEY` is the only credential this whole demo needs. There's no second key, no policy-service token, no separate auth setup for perso itself.
-
-### Step 5 — Run
+**Run:**
 
 ```bash
 pnpm dev
@@ -121,7 +122,58 @@ Starts both services concurrently:
 - Frontend → http://localhost:5173
 - Backend → http://localhost:3001
 
-The status banner at the top turns green once the WASM engine and Groq are ready.
+Or run them separately:
+
+```bash
+pnpm dev:backend    # Node backend only
+pnpm dev:frontend   # frontend only
+```
+
+---
+
+### Option B — Python backend
+
+**Prerequisites:** Python 3.10+
+
+**Install:**
+
+```bash
+cd backend-python
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Configure:**
+
+Open `backend-python/.env` and fill in:
+
+```env
+PORT=3001
+FRONTEND_URL=http://localhost:5173
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama-3.1-8b-instant
+```
+
+**Run the backend:**
+
+```bash
+uvicorn main:app --reload --port 3001
+```
+
+**Run the frontend** (in a separate terminal, from the repo root):
+
+```bash
+pnpm install        # first time only
+pnpm dev:frontend
+```
+
+- Frontend → http://localhost:5173
+- Backend → http://localhost:3001
+
+---
+
+The status banner at the top of the UI turns green once the WASM engine and Groq are both ready.
 
 ---
 
@@ -271,50 +323,59 @@ Try to bulk update without MFA verified
 
 ```
 perso-demo/
-├── backend/
+├── backend/                          ← Node.js backend (Option A)
 │   ├── src/
 │   │   ├── lib/
-│   │   │   ├── persoInstance.ts  ← perso-sdk singleton (shared across routes)
-│   │   │   ├── groq.ts           ← Groq client + two-step function calling flow + agentAttributes builder
-│   │   │   ├── groqTools.ts      ← Groq tool definitions for 7 CRM tools
-│   │   │   ├── mockTools.ts      ← fake CRM implementations + resource attribute resolver
-│   │   │   └── types.ts          ← shared domain types
+│   │   │   ├── persoInstance.ts      ← perso-sdk singleton
+│   │   │   ├── groq.ts               ← Groq client + two-step function calling flow
+│   │   │   ├── groqTools.ts          ← Groq tool definitions for 7 CRM tools
+│   │   │   ├── mockTools.ts          ← fake CRM implementations + resource attribute resolver
+│   │   │   └── types.ts              ← shared domain types
 │   │   ├── routes/
-│   │   │   ├── health.ts         ← GET /health (wasm + llm feature flags)
-│   │   │   ├── evaluate.ts       ← POST /evaluate (raw perso evaluation)
-│   │   │   └── chat.ts           ← POST /chat (Groq + perso interception)
+│   │   │   ├── health.ts             ← GET /health
+│   │   │   ├── evaluate.ts           ← POST /evaluate
+│   │   │   └── chat.ts               ← POST /chat
 │   │   └── index.ts
 │   ├── wasm/
-│   │   ├── policy.json           ← perso policy definition
-│   │   └── perso.wasm            ← compiled engine binary
+│   │   ├── policy.json               ← perso policy definition (shared with Python backend)
+│   │   └── perso.wasm                ← compiled engine binary (shared with Python backend)
 │   ├── .env.example
-│   └── .env                      ← gitignored — never commit this
-├── frontend/
+│   └── .env                          ← gitignored
+├── backend-python/                   ← Python backend (Option B)
+│   ├── main.py                       ← FastAPI app + routes
+│   ├── groq_client.py                ← Groq client + two-step function calling flow
+│   ├── groq_tools.py                 ← Groq tool definitions for 7 CRM tools
+│   ├── mock_tools.py                 ← fake CRM implementations + resource attribute resolver
+│   ├── models.py                     ← shared domain types (Pydantic)
+│   ├── perso_instance.py             ← perso-sdk singleton
+│   ├── requirements.txt
+│   └── .env                          ← gitignored
+├── frontend/                         ← shared UI (works with either backend)
 │   ├── src/
 │   │   ├── components/chat/
 │   │   │   ├── ChatInput.tsx
 │   │   │   ├── ChatMessage.tsx
-│   │   │   ├── EmptyState.tsx       ← role-aware prompt cards
-│   │   │   ├── PolicySidebar.tsx    ← human-readable policy + raw JSON drawer
+│   │   │   ├── EmptyState.tsx
+│   │   │   ├── PolicySidebar.tsx
 │   │   │   ├── RoleSelector.tsx
 │   │   │   ├── StatusBanner.tsx
 │   │   │   └── TypingIndicator.tsx
 │   │   ├── lib/api.ts
-│   │   ├── pages/Index.tsx
+│   │   ├── pages/
 │   │   └── types/api.ts
-│   └── vite.config.ts
+│   └── vite.config.ts                ← proxies /api/* → localhost:3001
 ├── pnpm-workspace.yaml
 └── package.json
 ```
 
 ---
 
-## pnpm scripts
+## pnpm scripts (Node backend)
 
 ```bash
-pnpm dev              # start both frontend and backend from root
-pnpm dev:backend      # backend only
-pnpm dev:frontend     # frontend only
+pnpm dev              # start both frontend + Node backend concurrently
+pnpm dev:backend      # Node backend only
+pnpm dev:frontend     # frontend only (works with either backend)
 pnpm build            # production build (frontend)
 pnpm typecheck        # tsc --noEmit both packages
 ```

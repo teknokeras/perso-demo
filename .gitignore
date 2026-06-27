@@ -67,6 +67,17 @@ Desktop.ini
 *.sw?
 
 # ========================
+# Python (backend-python)
+# ========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+backend-python/.venv/
+backend-python/*.egg-info/
+backend-python/.env
+
+# ========================
 # Misc
 # ========================
 *.local

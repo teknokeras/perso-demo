@@ -1,0 +1,6 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+groq>=0.4.0
+python-dotenv>=1.0.0
+perso-sdk @ git+https://github.com/teknokeras/perso-sdk-python.git
