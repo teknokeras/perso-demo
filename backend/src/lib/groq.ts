@@ -64,15 +64,20 @@ const MOCK_USER_IDS: Record<Role, string> = {
   admin: 'adm-001',
 };
 
+const MOCK_ENV: Record<Role, string> = {
+  agent: 'staging',
+  manager: 'staging',
+  admin: 'production',
+}
+
 function buildAgentAttributes(
   role: Role,
   conversationText: string,
 ): Record<string, unknown> {
   const attrs: Record<string, unknown> = {
-    user_id: MOCK_USER_IDS[role],
-    role,
-    env: 'production',
-  };
+    user_id: MOCK_USER_IDS[role] ?? 'unknown',
+    env: MOCK_ENV[role] ?? 'staging',
+  }
 
   // MFA: the user can claim it in their message — in a real app this
   // would come from a verified session flag, not the message text.
