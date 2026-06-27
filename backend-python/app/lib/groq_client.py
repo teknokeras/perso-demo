@@ -53,6 +53,14 @@ def get_groq_client() -> Groq:
         _client = Groq(api_key=api_key)
     return _client
 
+# Demo-only: deterministic per-role env so the documented script
+# (manager = staging, denied on export_data; admin = production,
+# allowed on bulk_update) reproduces the same outcome every run.
+MOCK_ENV: dict[str, str] = {
+    "agent": "staging",
+    "manager": "staging",
+    "admin": "production",
+}
 
 def build_agent_attributes(role: str, messages: list[dict[str, Any]]) -> dict[str, Any]:
     """
@@ -66,7 +74,7 @@ def build_agent_attributes(role: str, messages: list[dict[str, Any]]) -> dict[st
     )
     attrs: dict[str, Any] = {
         "user_id": MOCK_USER_IDS.get(role, "unknown"),
-        "env": "production",
+        "env": MOCK_ENV.get(role, "staging"),
     }
     mfa_mentioned = bool(
         re.search(r"mfa.*(verif|done|complet|passed)", recent_text, re.IGNORECASE)
