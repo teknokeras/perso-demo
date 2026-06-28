@@ -389,6 +389,51 @@ pnpm typecheck        # tsc --noEmit both packages
 
 ---
 
+## Regression testing
+
+`scripts/regression_test.py` sends 10 scenarios directly to `/evaluate` (bypassing the LLM entirely) and asserts the expected decision. It catches regressions in the authorization layer that manual click-throughs will miss — specifically the kind that once let an env-hardcoding bug through silently on both backends.
+
+The 10 scenarios cover the five denial types documented in the README table plus their mirror-image Allow cases:
+
+| # | Scenario | Expected |
+|---|---|---|
+| 1 | Agent view customer C-1042 | Allow |
+| 2 | Agent process_refund $200 (within $500 cap) | Allow |
+| 3 | Manager delete C-2038 (owns it, user_id==owner_id) | Allow |
+| 4 | Manager access_pii WITH mfa_verified present | Allow |
+| 5 | Admin bulk_update WITH mfa_verified + env=production | Allow |
+| 6 | Agent process_refund $800 → NumericCheck deny (>$500 cap) | Deny |
+| 7 | Manager delete C-9001 → FieldEquals deny (wrong owner) | Deny |
+| 8 | Manager access_pii WITHOUT mfa_verified → FieldPresent deny | Deny |
+| 9 | Manager export_data env=staging → StringCheck deny | Deny |
+| 10 | Admin bulk_update WITHOUT mfa_verified → All-condition deny | Deny |
+
+Both backends share port `:3001`, so run them one at a time.
+
+**Node backend:**
+
+```bash
+# In one terminal:
+cd backend && npx tsx src/index.ts
+
+# In another:
+python3 scripts/regression_test.py --backend node
+```
+
+**Python backend:**
+
+```bash
+# In one terminal:
+cd backend-python && uvicorn app.main:app --port 3001
+
+# In another:
+python3 scripts/regression_test.py --backend python
+```
+
+The script exits 0 on full pass, 1 if any scenario fails, and prints a clear `FAIL ← DISCREPANCY` marker alongside the reason string so divergences are immediately visible.
+
+---
+
 ## Related repos
 
 | Repo | Description |
